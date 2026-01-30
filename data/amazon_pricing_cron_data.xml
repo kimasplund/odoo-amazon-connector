@@ -14,7 +14,6 @@
             <field name="code">model._cron_fetch_competitor_prices()</field>
             <field name="interval_number">2</field>
             <field name="interval_type">hours</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">10</field>
@@ -28,7 +27,6 @@
             <field name="code">model._cron_generate_recommendations()</field>
             <field name="interval_number">4</field>
             <field name="interval_type">hours</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">15</field>
@@ -42,7 +40,6 @@
             <field name="code">model._cron_auto_apply_recommendations()</field>
             <field name="interval_number">6</field>
             <field name="interval_type">hours</field>
-            <field name="numbercall">-1</field>
             <field name="active">False</field>  <!-- Disabled by default - enable manually -->
             <field name="doall">False</field>
             <field name="priority">20</field>
@@ -56,7 +53,6 @@
             <field name="code">model._cron_expire_old_recommendations()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">50</field>
@@ -70,7 +66,6 @@
             <field name="code">model.cleanup_old_records(days=90)</field>
             <field name="interval_number">7</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">50</field>

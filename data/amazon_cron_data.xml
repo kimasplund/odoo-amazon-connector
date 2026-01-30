@@ -14,7 +14,6 @@
             <field name="code">model._cron_sync_fba_inventory()</field>
             <field name="interval_number">4</field>
             <field name="interval_type">hours</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">10</field>
@@ -28,7 +27,6 @@
             <field name="code">model._cron_sync_fbm_inventory()</field>
             <field name="interval_number">2</field>
             <field name="interval_type">hours</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">10</field>
@@ -46,7 +44,6 @@
             <field name="code">model._cron_sync_shipments()</field>
             <field name="interval_number">6</field>
             <field name="interval_type">hours</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">15</field>
@@ -60,7 +57,6 @@
             <field name="code">model._cron_check_shipment_alerts()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">20</field>
@@ -78,7 +74,6 @@
             <field name="code">model._cron_collect_demand_history()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">5</field>
@@ -93,7 +88,6 @@
             <field name="code">model._cron_update_forecasts()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">6</field>
@@ -108,7 +102,6 @@
             <field name="code">model._cron_create_missing_forecasts()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">7</field>
@@ -123,7 +116,6 @@
             <field name="code">model._cron_generate_suggestions()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">8</field>
@@ -138,7 +130,6 @@
             <field name="code">model._cron_expire_old_suggestions()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">50</field>
@@ -152,7 +143,6 @@
             <field name="code">model._cron_send_weekly_summary()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">weeks</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">30</field>
@@ -170,7 +160,6 @@
             <field name="code">model._cron_cleanup_old_syncs()</field>
             <field name="interval_number">7</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
             <field name="doall">False</field>
             <field name="priority">50</field>
