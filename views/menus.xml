@@ -135,18 +135,6 @@
               action="amazon_fba_shipment_action"
               sequence="1"/>
 
-    <menuitem id="menu_amazon_fba_removals"
-              name="Removal Orders"
-              parent="menu_amazon_fba"
-              action="amazon_fba_removal_action"
-              sequence="5"/>
-
-    <menuitem id="menu_amazon_fba_fees"
-              name="FBA Fees"
-              parent="menu_amazon_fba"
-              action="amazon_fba_fee_action"
-              sequence="10"/>
-
     <!-- ============================================================ -->
     <!-- Reports Menu                                                  -->
     <!-- ============================================================ -->
@@ -155,18 +143,6 @@
               name="Reports"
               parent="menu_amazon_root"
               sequence="40"/>
-
-    <menuitem id="menu_amazon_reports_settlements"
-              name="Settlements"
-              parent="menu_amazon_reports"
-              action="amazon_settlement_action"
-              sequence="1"/>
-
-    <menuitem id="menu_amazon_reports_inventory_history"
-              name="Inventory History"
-              parent="menu_amazon_reports"
-              action="amazon_inventory_history_action"
-              sequence="5"/>
 
     <menuitem id="menu_amazon_reports_sync_logs"
               name="Sync Logs"
