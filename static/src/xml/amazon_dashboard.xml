@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Amazon Smart Dashboard - OWL 2 Template -->
+    <t t-name="amazon_connector.Dashboard">
+        <div class="o_amazon_dashboard">
+            <!-- Loading Overlay -->
+            <div t-if="state.loading" class="amazon-loading-overlay">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading dashboard...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div t-if="state.error and !state.loading" class="alert alert-danger m-4" role="alert">
+                <h4 class="alert-heading">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    Dashboard Error
+                </h4>
+                <p t-esc="state.error"/>
+                <button class="btn btn-outline-danger" t-on-click="onRefresh">
+                    <i class="fa fa-refresh me-2"/>Try Again
+                </button>
+            </div>
+            
+            <!-- Main Dashboard Content -->
+            <div t-if="!state.error or state.loading" class="container-fluid py-3">
+                
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- HEADER ROW -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                            <!-- Title -->
+                            <div class="d-flex align-items-center">
+                                <span class="amazon-logo-icon me-3">
+                                    <i class="fa fa-amazon fa-2x"/>
+                                </span>
+                                <div>
+                                    <h2 class="mb-0 fw-bold">Amazon Dashboard</h2>
+                                    <small class="text-muted" t-if="state.lastRefresh">
+                                        Last updated: <t t-esc="formatLastRefresh()"/>
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <!-- Controls -->
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <!-- Account Selector -->
+                                <select class="form-select form-select-sm" style="width: auto; min-width: 180px;"
+                                        t-on-change="onAccountChange">
+                                    <option value="">All Accounts</option>
+                                    <t t-foreach="state.accounts" t-as="account" t-key="account.id">
+                                        <option t-att-value="account.id" 
+                                                t-att-selected="state.selectedAccountId === account.id">
+                                            <t t-esc="account.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                                
+                                <!-- Period Selector -->
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" 
+                                            t-attf-class="btn btn-outline-primary #{state.selectedPeriod === 'week' ? 'active' : ''}"
+                                            t-on-click="() => this.onPeriodChange('week')">
+                                        Week
+                                    </button>
+                                    <button type="button" 
+                                            t-attf-class="btn btn-outline-primary #{state.selectedPeriod === 'month' ? 'active' : ''}"
+                                            t-on-click="() => this.onPeriodChange('month')">
+                                        Month
+                                    </button>
+                                    <button type="button" 
+                                            t-attf-class="btn btn-outline-primary #{state.selectedPeriod === 'quarter' ? 'active' : ''}"
+                                            t-on-click="() => this.onPeriodChange('quarter')">
+                                        Quarter
+                                    </button>
+                                    <button type="button" 
+                                            t-attf-class="btn btn-outline-primary #{state.selectedPeriod === 'year' ? 'active' : ''}"
+                                            t-on-click="() => this.onPeriodChange('year')">
+                                        Year
+                                    </button>
+                                </div>
+                                
+                                <!-- Refresh Controls -->
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-primary" t-on-click="onRefresh"
+                                            t-att-disabled="state.loading">
+                                        <i t-attf-class="fa fa-refresh #{state.loading ? 'fa-spin' : ''} me-1"/>
+                                        Refresh
+                                    </button>
+                                    <button type="button" 
+                                            t-attf-class="btn #{state.autoRefresh ? 'btn-success' : 'btn-outline-secondary'}"
+                                            t-on-click="onToggleAutoRefresh"
+                                            title="Auto-refresh every 5 minutes">
+                                        <i class="fa fa-clock-o"/>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- KPI CARDS ROW -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="row mb-4 g-3">
+                    
+                    <!-- Revenue Card -->
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="amazon-kpi-card revenue">
+                            <div class="kpi-icon">
+                                <i class="fa fa-euro"/>
+                            </div>
+                            <div class="kpi-content">
+                                <div class="kpi-label">Revenue (Month)</div>
+                                <div class="kpi-value" t-esc="formatCurrency(state.kpis.revenue_month)"/>
+                                <div class="kpi-subvalue">
+                                    <span>Today: <t t-esc="formatCurrency(state.kpis.revenue_today)"/></span>
+                                </div>
+                                <div t-attf-class="kpi-trend #{getTrendClass(state.kpis.revenue_trend)}">
+                                    <i t-attf-class="fa #{getTrendIcon(state.kpis.revenue_trend)}"/>
+                                    <span t-esc="formatPercentage(Math.abs(state.kpis.revenue_trend_pct))"/> vs last month
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Orders Card -->
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="amazon-kpi-card orders">
+                            <div class="kpi-icon">
+                                <i class="fa fa-shopping-cart"/>
+                            </div>
+                            <div class="kpi-content">
+                                <div class="kpi-label">Orders (Month)</div>
+                                <div class="kpi-value" t-esc="formatNumber(state.kpis.orders_month)"/>
+                                <div class="kpi-subvalue">
+                                    <span>Today: <t t-esc="formatNumber(state.kpis.orders_today)"/></span>
+                                    <span class="ms-3 text-warning" t-if="state.kpis.orders_pending_shipment > 0">
+                                        <i class="fa fa-exclamation-circle me-1"/>
+                                        <t t-esc="state.kpis.orders_pending_shipment"/> pending
+                                    </span>
+                                </div>
+                                <div t-attf-class="kpi-trend #{getTrendClass(state.kpis.orders_trend)}">
+                                    <i t-attf-class="fa #{getTrendIcon(state.kpis.orders_trend)}"/>
+                                    <span t-esc="formatPercentage(Math.abs(state.kpis.orders_trend_pct))"/> vs last week
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Buy Box Card -->
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="amazon-kpi-card buybox">
+                            <div class="kpi-icon">
+                                <i class="fa fa-trophy"/>
+                            </div>
+                            <div class="kpi-content">
+                                <div class="kpi-label">Buy Box %</div>
+                                <div class="kpi-value" t-esc="formatPercentage(state.kpis.buy_box_percentage)"/>
+                                <div class="kpi-subvalue">
+                                    <span><t t-esc="formatNumber(state.kpis.buybox_winners || 0)"/> of <t t-esc="formatNumber(state.kpis.total_active_listings || 0)"/> listings</span>
+                                </div>
+                                <div class="kpi-trend">
+                                    <span t-if="state.kpis.buy_box_percentage >= 80" class="text-success">
+                                        <i class="fa fa-check-circle me-1"/>Excellent
+                                    </span>
+                                    <span t-elif="state.kpis.buy_box_percentage >= 60" class="text-warning">
+                                        <i class="fa fa-minus-circle me-1"/>Good
+                                    </span>
+                                    <span t-else="" class="text-danger">
+                                        <i class="fa fa-times-circle me-1"/>Needs attention
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Inventory Health Card -->
+                    <div class="col-xl-3 col-lg-6 col-md-6">
+                        <div class="amazon-kpi-card inventory">
+                            <div class="kpi-icon">
+                                <i class="fa fa-cubes"/>
+                            </div>
+                            <div class="kpi-content">
+                                <div class="kpi-label">Inventory Health</div>
+                                <div class="kpi-value">
+                                    <span t-esc="state.kpis.inventory_health_score"/><small>/100</small>
+                                </div>
+                                <div class="kpi-subvalue">
+                                    <span t-if="state.kpis.stockout_risk_count > 0" class="text-danger me-2">
+                                        <i class="fa fa-exclamation-triangle me-1"/>
+                                        <t t-esc="state.kpis.stockout_risk_count"/> stockouts
+                                    </span>
+                                    <span t-if="state.kpis.low_stock_count > 0" class="text-warning">
+                                        <i class="fa fa-exclamation-circle me-1"/>
+                                        <t t-esc="state.kpis.low_stock_count"/> low stock
+                                    </span>
+                                    <span t-if="state.kpis.stockout_risk_count === 0 and state.kpis.low_stock_count === 0" class="text-success">
+                                        <i class="fa fa-check-circle me-1"/>All healthy
+                                    </span>
+                                </div>
+                                <div t-attf-class="kpi-trend text-#{getHealthScoreClass(state.kpis.inventory_health_score)}">
+                                    <t t-esc="getHealthScoreLabel(state.kpis.inventory_health_score)"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- CHARTS ROW -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="row mb-4 g-3">
+                    
+                    <!-- Revenue Chart -->
+                    <div class="col-lg-8">
+                        <div class="amazon-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-line-chart me-2 text-primary"/>
+                                    Revenue Trend
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="height: 300px;">
+                                    <canvas id="amazon_revenue_chart"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Marketplace Chart -->
+                    <div class="col-lg-4">
+                        <div class="amazon-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-pie-chart me-2 text-info"/>
+                                    By Marketplace
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="height: 300px;">
+                                    <canvas id="amazon_marketplace_chart"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- SECONDARY METRICS ROW -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="row mb-4 g-3">
+                    
+                    <!-- FBA vs FBM Chart -->
+                    <div class="col-lg-4">
+                        <div class="amazon-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-truck me-2"/>
+                                    FBA vs FBM
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="height: 220px;">
+                                    <canvas id="amazon_fulfillment_chart"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Top Products -->
+                    <div class="col-lg-4">
+                        <div class="amazon-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-star me-2 text-warning"/>
+                                    Top Sellers
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="amazon-product-list">
+                                    <t t-if="state.topProducts.length === 0">
+                                        <div class="text-center text-muted py-4">
+                                            <i class="fa fa-inbox fa-2x mb-2"/>
+                                            <p class="mb-0">No sales data available</p>
+                                        </div>
+                                    </t>
+                                    <t t-foreach="state.topProducts" t-as="product" t-key="product.sku">
+                                        <div class="product-item">
+                                            <div class="product-rank" t-esc="product_index + 1"/>
+                                            <div class="product-info">
+                                                <div class="product-name" t-esc="product.name"/>
+                                                <div class="product-sku text-muted" t-esc="product.sku"/>
+                                            </div>
+                                            <div class="product-stats text-end">
+                                                <div class="product-revenue" t-esc="formatCurrency(product.revenue)"/>
+                                                <div class="product-qty text-muted">
+                                                    <t t-esc="formatNumber(product.quantity)"/> units
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Stats -->
+                    <div class="col-lg-4">
+                        <div class="amazon-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-tachometer me-2"/>
+                                    Quick Stats
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="quick-stat">
+                                    <span class="stat-label">Avg Order Value</span>
+                                    <span class="stat-value" t-esc="formatCurrency(state.kpis.average_order_value)"/>
+                                </div>
+                                <div class="quick-stat">
+                                    <span class="stat-label">Units Sold Today</span>
+                                    <span class="stat-value" t-esc="formatNumber(state.kpis.units_sold_today)"/>
+                                </div>
+                                <div class="quick-stat">
+                                    <span class="stat-label">Units Sold This Week</span>
+                                    <span class="stat-value" t-esc="formatNumber(state.kpis.units_sold_week)"/>
+                                </div>
+                                <div class="quick-stat">
+                                    <span class="stat-label">Return Rate</span>
+                                    <span t-attf-class="stat-value #{state.kpis.returns_rate > 5 ? 'text-danger' : 'text-success'}">
+                                        <t t-esc="formatPercentage(state.kpis.returns_rate)"/>
+                                    </span>
+                                </div>
+                                <div class="quick-stat">
+                                    <span class="stat-label">FBA SKUs</span>
+                                    <span class="stat-value" t-esc="formatNumber(state.kpis.total_fba_skus || 0)"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- ALERTS & RECOMMENDATIONS ROW -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="row mb-4 g-3">
+                    
+                    <!-- Alerts -->
+                    <div class="col-lg-6">
+                        <div class="amazon-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-bell me-2 text-danger"/>
+                                    Alerts
+                                    <span t-if="state.alerts.length > 0" class="badge bg-danger ms-2">
+                                        <t t-esc="state.alerts.length"/>
+                                    </span>
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="amazon-alert-list">
+                                    <t t-if="state.alerts.length === 0">
+                                        <div class="text-center py-5">
+                                            <i class="fa fa-check-circle fa-3x text-success mb-3"/>
+                                            <p class="text-muted mb-0">No alerts - everything looks good!</p>
+                                        </div>
+                                    </t>
+                                    <t t-foreach="state.alerts" t-as="alert" t-key="alert.id">
+                                        <div t-attf-class="alert-item severity-#{alert.severity}">
+                                            <div class="alert-icon">
+                                                <i t-attf-class="fa #{alert.severity === 'critical' ? 'fa-exclamation-circle' : alert.severity === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"/>
+                                            </div>
+                                            <div class="alert-content">
+                                                <div class="alert-title" t-esc="alert.title"/>
+                                                <div class="alert-message" t-esc="alert.message"/>
+                                                <t t-if="alert.items and alert.items.length > 0">
+                                                    <ul class="alert-items">
+                                                        <t t-foreach="alert.items.slice(0, 3)" t-as="item" t-key="item.sku">
+                                                            <li t-esc="item.name || item.sku"/>
+                                                        </t>
+                                                        <t t-if="alert.items.length > 3">
+                                                            <li class="text-muted">... and <t t-esc="alert.items.length - 3"/> more</li>
+                                                        </t>
+                                                    </ul>
+                                                </t>
+                                            </div>
+                                            <div class="alert-actions">
+                                                <button class="btn btn-sm btn-primary" 
+                                                        t-on-click="() => this.onAlertAction(alert)">
+                                                    View
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary"
+                                                        t-on-click="() => this.onDismissAlert(alert.id)"
+                                                        title="Dismiss">
+                                                    <i class="fa fa-times"/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recommendations -->
+                    <div class="col-lg-6">
+                        <div class="amazon-card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-lightbulb-o me-2 text-warning"/>
+                                    Recommendations
+                                </h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="amazon-recommendation-list">
+                                    <t t-if="state.recommendations.length === 0">
+                                        <div class="text-center py-5">
+                                            <i class="fa fa-thumbs-up fa-3x text-success mb-3"/>
+                                            <p class="text-muted mb-0">Great job! No recommendations at this time.</p>
+                                        </div>
+                                    </t>
+                                    <t t-foreach="state.recommendations" t-as="rec" t-key="rec.id">
+                                        <div class="recommendation-item">
+                                            <div t-attf-class="rec-priority priority-#{rec.priority}">
+                                                <t t-if="rec.priority === 'high'">!</t>
+                                                <t t-elif="rec.priority === 'medium'">•</t>
+                                                <t t-else="">○</t>
+                                            </div>
+                                            <div class="rec-content">
+                                                <div class="rec-title" t-esc="rec.title"/>
+                                                <div class="rec-description" t-esc="rec.description"/>
+                                                <div class="rec-impact text-muted">
+                                                    <i class="fa fa-bolt me-1"/>
+                                                    Impact: <t t-esc="rec.impact"/>
+                                                </div>
+                                            </div>
+                                            <div class="rec-action">
+                                                <button class="btn btn-sm btn-outline-primary"
+                                                        t-on-click="() => this.onRecommendationAction(rec)">
+                                                    <t t-esc="rec.action_label"/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- QUICK ACTIONS ROW -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="amazon-card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fa fa-rocket me-2"/>
+                                    Quick Actions
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-2">
+                                    <div class="col-lg-2 col-md-4 col-sm-6">
+                                        <button class="btn btn-outline-primary w-100 quick-action-btn"
+                                                t-on-click="onSyncOrders">
+                                            <i class="fa fa-refresh me-2"/>
+                                            Sync Orders
+                                        </button>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 col-sm-6">
+                                        <button class="btn btn-outline-primary w-100 quick-action-btn"
+                                                t-on-click="onSyncInventory">
+                                            <i class="fa fa-cubes me-2"/>
+                                            Sync Inventory
+                                        </button>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 col-sm-6">
+                                        <button class="btn btn-outline-secondary w-100 quick-action-btn"
+                                                t-on-click="() => this._viewOrders('pending_ship')">
+                                            <i class="fa fa-truck me-2"/>
+                                            Pending Orders
+                                        </button>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 col-sm-6">
+                                        <button class="btn btn-outline-secondary w-100 quick-action-btn"
+                                                t-on-click="() => this._viewInventory('low_stock')">
+                                            <i class="fa fa-exclamation-triangle me-2"/>
+                                            Low Stock
+                                        </button>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 col-sm-6">
+                                        <button class="btn btn-outline-secondary w-100 quick-action-btn"
+                                                t-on-click="_createFBAShipment">
+                                            <i class="fa fa-plus me-2"/>
+                                            New FBA Shipment
+                                        </button>
+                                    </div>
+                                    <div class="col-lg-2 col-md-4 col-sm-6">
+                                        <button class="btn btn-outline-secondary w-100 quick-action-btn"
+                                                t-on-click="() => this._viewListings('no_buybox')">
+                                            <i class="fa fa-trophy me-2"/>
+                                            Lost Buy Box
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </t>
+    
+</templates>

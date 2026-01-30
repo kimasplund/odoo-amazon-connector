@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════════════════════════════════
+         Amazon Smart Dashboard - Odoo 18
+         OWL 2 Component Registration and Client Action
+         ════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ========================================================================
+         Dashboard Client Action (Main Entry Point)
+         ======================================================================== -->
+    
+    <!-- This client action loads the OWL 2 dashboard component -->
+    <record id="amazon_dashboard_action" model="ir.actions.client">
+        <field name="name">Amazon Dashboard</field>
+        <field name="tag">amazon_dashboard</field>
+        <field name="context">{'is_dashboard': True}</field>
+    </record>
+
+    <!-- ========================================================================
+         Dashboard Graph Views (Used by Dashboard Widgets)
+         ======================================================================== -->
+
+    <!-- Orders by Date - Line Chart -->
+    <record id="amazon_order_view_graph_dashboard" model="ir.ui.view">
+        <field name="name">amazon.order.graph.dashboard</field>
+        <field name="model">amazon.order</field>
+        <field name="arch" type="xml">
+            <graph string="Orders Over Time" type="line" sample="1">
+                <field name="purchase_date" interval="day"/>
+                <field name="order_total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Orders by Marketplace - Pivot -->
+    <record id="amazon_order_view_pivot_dashboard" model="ir.ui.view">
+        <field name="name">amazon.order.pivot.dashboard</field>
+        <field name="model">amazon.order</field>
+        <field name="arch" type="xml">
+            <pivot string="Orders by Marketplace" sample="1">
+                <field name="marketplace_id" type="row"/>
+                <field name="order_total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Orders by Status - Pie Chart -->
+    <record id="amazon_order_view_graph_status" model="ir.ui.view">
+        <field name="name">amazon.order.graph.status</field>
+        <field name="model">amazon.order</field>
+        <field name="arch" type="xml">
+            <graph string="Orders by Status" type="pie" sample="1">
+                <field name="order_status"/>
+                <field name="order_total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Orders by Fulfillment Channel - Pie Chart -->
+    <record id="amazon_order_view_graph_fulfillment" model="ir.ui.view">
+        <field name="name">amazon.order.graph.fulfillment</field>
+        <field name="model">amazon.order</field>
+        <field name="arch" type="xml">
+            <graph string="FBA vs FBM" type="pie" sample="1">
+                <field name="fulfillment_channel"/>
+                <field name="order_total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Inventory by Marketplace - Bar Chart -->
+    <record id="amazon_inventory_view_graph_dashboard" model="ir.ui.view">
+        <field name="name">amazon.fba.inventory.graph.dashboard</field>
+        <field name="model">amazon.fba.inventory</field>
+        <field name="arch" type="xml">
+            <graph string="Inventory by Marketplace" type="bar" sample="1">
+                <field name="marketplace_id"/>
+                <field name="quantity_available" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Listings by Status - Pie Chart -->
+    <record id="amazon_product_listing_view_graph_dashboard" model="ir.ui.view">
+        <field name="name">amazon.product.listing.graph.dashboard</field>
+        <field name="model">amazon.product.listing</field>
+        <field name="arch" type="xml">
+            <graph string="Listings by Status" type="pie" sample="1">
+                <field name="state"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- FBA Shipments by Status - Bar Chart -->
+    <record id="amazon_fba_shipment_view_graph_dashboard" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.graph.dashboard</field>
+        <field name="model">amazon.fba.shipment</field>
+        <field name="arch" type="xml">
+            <graph string="FBA Shipments by Status" type="bar" sample="1">
+                <field name="state"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ========================================================================
+         Quick Navigation Actions (Linked from Dashboard)
+         ======================================================================== -->
+
+    <!-- Today's Orders -->
+    <record id="amazon_order_action_today" model="ir.actions.act_window">
+        <field name="name">Today's Orders</field>
+        <field name="res_model">amazon.order</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="domain">[('purchase_date', '&gt;=', (context_today()).strftime('%Y-%m-%d'))]</field>
+        <field name="context">{'create': False}</field>
+    </record>
+
+    <!-- This Week's Revenue -->
+    <record id="amazon_order_action_week_revenue" model="ir.actions.act_window">
+        <field name="name">This Week's Revenue</field>
+        <field name="res_model">amazon.order</field>
+        <field name="view_mode">graph,pivot,tree</field>
+        <field name="domain">[('purchase_date', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]</field>
+        <field name="context">{'graph_mode': 'line', 'graph_measure': 'order_total'}</field>
+    </record>
+
+    <!-- Pending Orders (FBM needing shipment) -->
+    <record id="amazon_order_action_pending" model="ir.actions.act_window">
+        <field name="name">Pending Orders</field>
+        <field name="res_model">amazon.order</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="domain">[('order_status', 'in', ['pending', 'unshipped']), ('fulfillment_channel', '=', 'MFN')]</field>
+    </record>
+
+    <!-- Lost Buy Box -->
+    <record id="amazon_product_listing_action_no_buybox" model="ir.actions.act_window">
+        <field name="name">Lost Buy Box</field>
+        <field name="res_model">amazon.product.listing</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="domain">[('state', '=', 'active'), ('is_buybox_winner', '=', False)]</field>
+    </record>
+
+    <!-- Low Stock Inventory -->
+    <record id="amazon_fba_inventory_action_low_stock" model="ir.actions.act_window">
+        <field name="name">Low Stock Items</field>
+        <field name="res_model">amazon.fba.inventory</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('quantity_available', '&gt;', 0), ('quantity_available', '&lt;=', 10)]</field>
+    </record>
+
+    <!-- Out of Stock Inventory -->
+    <record id="amazon_fba_inventory_action_stockout" model="ir.actions.act_window">
+        <field name="name">Out of Stock Items</field>
+        <field name="res_model">amazon.fba.inventory</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('quantity_available', '=', 0)]</field>
+    </record>
+
+    <!-- Suppressed Listings -->
+    <record id="amazon_product_listing_action_suppressed" model="ir.actions.act_window">
+        <field name="name">Suppressed Listings</field>
+        <field name="res_model">amazon.product.listing</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('state', '=', 'suppressed')]</field>
+    </record>
+
+    <!-- ========================================================================
+         Dashboard Quick Access Menu Item
+         ======================================================================== -->
+    
+    <!-- Main Dashboard Menu (should be first item under Amazon menu) -->
+    <menuitem 
+        id="amazon_dashboard_menu"
+        name="Dashboard"
+        parent="amazon_connector.amazon_root_menu"
+        action="amazon_dashboard_action"
+        sequence="1"
+        groups="amazon_connector.group_amazon_user"
+    />
+
+</odoo>

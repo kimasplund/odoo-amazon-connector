@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Amazon Product Listing Views                                  -->
+    <!-- ============================================================ -->
+
+    <!-- Tree View -->
+    <record id="amazon_product_listing_view_tree" model="ir.ui.view">
+        <field name="name">amazon.product.listing.tree</field>
+        <field name="model">amazon.product.listing</field>
+        <field name="arch" type="xml">
+            <list string="Amazon Listings" 
+                  decoration-danger="listing_status == 'inactive'" 
+                  decoration-warning="listing_status == 'suppressed'"
+                  decoration-muted="listing_status == 'deleted'"
+                  sample="1">
+                <field name="product_id" widget="many2one_avatar"/>
+                <field name="sku"/>
+                <field name="asin"/>
+                <field name="marketplace_id"/>
+                <field name="account_id"/>
+                <field name="title" optional="show"/>
+                <field name="price" widget="monetary"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="quantity_available"/>
+                <field name="fulfillment_channel" widget="badge"/>
+                <field name="listing_status" widget="badge"
+                       decoration-success="listing_status == 'active'"
+                       decoration-warning="listing_status == 'suppressed'"
+                       decoration-danger="listing_status in ['inactive', 'deleted']"/>
+                <field name="buy_box_winner" widget="boolean"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="amazon_product_listing_view_form" model="ir.ui.view">
+        <field name="name">amazon.product.listing.form</field>
+        <field name="model">amazon.product.listing</field>
+        <field name="arch" type="xml">
+            <form string="Amazon Product Listing">
+                <header>
+                    <button name="action_sync_from_amazon" 
+                            string="Sync from Amazon" 
+                            type="object" 
+                            class="btn-primary"
+                            icon="fa-cloud-download"/>
+                    <button name="action_push_to_amazon" 
+                            string="Push to Amazon" 
+                            type="object" 
+                            class="btn-secondary"
+                            icon="fa-cloud-upload"/>
+                    <button name="action_update_price" 
+                            string="Update Price" 
+                            type="object"
+                            icon="fa-dollar"/>
+                    <button name="action_update_inventory" 
+                            string="Update Inventory" 
+                            type="object"
+                            icon="fa-cubes"/>
+                    <field name="listing_status" widget="statusbar" statusbar_visible="draft,active"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_orders" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-shopping-cart">
+                            <field name="order_count" widget="statinfo" string="Orders"/>
+                        </button>
+                        <button name="action_view_on_amazon" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-external-link"
+                                string="View on Amazon"/>
+                    </div>
+                    <widget name="web_ribbon" title="Suppressed" bg_color="text-bg-warning" invisible="listing_status != 'suppressed'"/>
+                    <widget name="web_ribbon" title="Inactive" bg_color="text-bg-danger" invisible="listing_status != 'inactive'"/>
+                    <field name="product_image" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <label for="title" string="Listing Title"/>
+                        <h1>
+                            <field name="title" placeholder="Amazon listing title"/>
+                        </h1>
+                        <h4 class="text-muted">
+                            <field name="product_id" options="{'no_open': True}"/>
+                        </h4>
+                    </div>
+                    <group>
+                        <group string="Identification">
+                            <field name="sku"/>
+                            <field name="asin"/>
+                            <field name="ean"/>
+                            <field name="upc"/>
+                            <field name="fnsku" invisible="fulfillment_channel != 'FBA'"/>
+                        </group>
+                        <group string="Marketplace">
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                            <field name="fulfillment_channel" widget="radio"/>
+                            <field name="condition"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Pricing" name="pricing">
+                            <group>
+                                <group string="Current Pricing">
+                                    <field name="price" widget="monetary"/>
+                                    <field name="currency_id" invisible="1"/>
+                                    <field name="sale_price" widget="monetary"/>
+                                    <field name="sale_start_date"/>
+                                    <field name="sale_end_date"/>
+                                </group>
+                                <group string="Competitive Info">
+                                    <field name="buy_box_price" widget="monetary"/>
+                                    <field name="buy_box_winner"/>
+                                    <field name="lowest_price" widget="monetary"/>
+                                    <field name="competitor_count"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Business Pricing (B2B)">
+                                    <field name="business_price" widget="monetary"/>
+                                    <field name="quantity_discount_ids" nolabel="1">
+                                        <list editable="bottom">
+                                            <field name="quantity_tier"/>
+                                            <field name="discount_type"/>
+                                            <field name="discount_value"/>
+                                        </list>
+                                    </field>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Inventory" name="inventory">
+                            <group>
+                                <group string="Stock Levels">
+                                    <field name="quantity_available"/>
+                                    <field name="quantity_reserved"/>
+                                    <field name="quantity_inbound" invisible="fulfillment_channel != 'FBA'"/>
+                                    <field name="quantity_unfulfillable" invisible="fulfillment_channel != 'FBA'"/>
+                                </group>
+                                <group string="Inventory Settings">
+                                    <field name="handling_time"/>
+                                    <field name="restock_date"/>
+                                    <field name="min_stock_level"/>
+                                    <field name="max_stock_level"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert" invisible="fulfillment_channel != 'FBA'">
+                                <i class="fa fa-info-circle"/> FBA inventory is managed by Amazon. 
+                                Quantities shown are from Amazon's fulfillment centers.
+                            </div>
+                        </page>
+                        <page string="Content" name="content">
+                            <group>
+                                <group string="Product Details">
+                                    <field name="brand"/>
+                                    <field name="manufacturer"/>
+                                    <field name="product_type"/>
+                                    <field name="browse_node_ids" widget="many2many_tags"/>
+                                </group>
+                                <group string="Attributes">
+                                    <field name="color"/>
+                                    <field name="size"/>
+                                    <field name="material"/>
+                                    <field name="item_weight"/>
+                                </group>
+                            </group>
+                            <group string="Bullet Points">
+                                <field name="bullet_point_1" placeholder="Key feature 1"/>
+                                <field name="bullet_point_2" placeholder="Key feature 2"/>
+                                <field name="bullet_point_3" placeholder="Key feature 3"/>
+                                <field name="bullet_point_4" placeholder="Key feature 4"/>
+                                <field name="bullet_point_5" placeholder="Key feature 5"/>
+                            </group>
+                            <group string="Description">
+                                <field name="description" nolabel="1" placeholder="Full product description..."/>
+                            </group>
+                            <group string="Search Terms">
+                                <field name="search_terms" nolabel="1" placeholder="comma, separated, keywords"/>
+                            </group>
+                        </page>
+                        <page string="Images" name="images">
+                            <field name="image_ids" nolabel="1">
+                                <kanban>
+                                    <field name="image"/>
+                                    <field name="image_type"/>
+                                    <field name="variant"/>
+                                    <field name="sequence"/>
+                                    <templates>
+                                        <t t-name="card">
+                                            <field name="image" widget="image" options="{'size': [150, 150]}"/>
+                                            <div class="mt-2">
+                                                <field name="image_type" class="fw-bold"/>
+                                                <div class="text-muted small">
+                                                    Variant: <field name="variant"/>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                            </field>
+                        </page>
+                        <page string="Offers" name="offers" invisible="1">
+                            <field name="offer_ids" nolabel="1" readonly="1">
+                                <list>
+                                    <field name="seller_id"/>
+                                    <field name="price" widget="monetary"/>
+                                    <field name="shipping" widget="monetary"/>
+                                    <field name="condition"/>
+                                    <field name="fulfillment_channel"/>
+                                    <field name="is_buy_box_winner" widget="boolean"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Quality" name="quality">
+                            <group>
+                                <group string="Listing Quality Score">
+                                    <field name="quality_score" widget="progressbar"/>
+                                    <field name="quality_issues"/>
+                                </group>
+                                <group string="Suppression Info" invisible="listing_status != 'suppressed'">
+                                    <field name="suppression_reason"/>
+                                    <field name="suppression_date"/>
+                                </group>
+                            </group>
+                            <group string="Issues" invisible="not issue_ids">
+                                <field name="issue_ids" nolabel="1" readonly="1">
+                                    <list>
+                                        <field name="severity" widget="badge" 
+                                               decoration-danger="severity == 'error'"
+                                               decoration-warning="severity == 'warning'"/>
+                                        <field name="attribute"/>
+                                        <field name="message"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+                        <page string="FBA" name="fba" invisible="fulfillment_channel != 'FBA'">
+                            <group>
+                                <group string="FBA Details">
+                                    <field name="fnsku"/>
+                                    <field name="fba_inbound_guidance"/>
+                                    <field name="prep_instructions"/>
+                                    <field name="labeling_type"/>
+                                </group>
+                                <group string="FBA Fees">
+                                    <field name="fba_fulfillment_fee" widget="monetary"/>
+                                    <field name="fba_storage_fee" widget="monetary"/>
+                                    <field name="fba_referral_fee" widget="monetary"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="amazon_product_listing_view_kanban" model="ir.ui.view">
+        <field name="name">amazon.product.listing.kanban</field>
+        <field name="model">amazon.product.listing</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" sample="1" default_group_by="listing_status">
+                <field name="title"/>
+                <field name="sku"/>
+                <field name="asin"/>
+                <field name="price"/>
+                <field name="currency_id"/>
+                <field name="quantity_available"/>
+                <field name="listing_status"/>
+                <field name="fulfillment_channel"/>
+                <field name="buy_box_winner"/>
+                <field name="product_image"/>
+                <progressbar field="listing_status" colors='{"active": "success", "inactive": "danger", "suppressed": "warning", "draft": "muted"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex">
+                            <field name="product_image" widget="image" class="o_kanban_image" options="{'size': [80, 80]}"/>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="d-flex justify-content-between">
+                                    <strong class="o_kanban_record_title text-truncate" style="max-width: 200px;">
+                                        <field name="title"/>
+                                    </strong>
+                                    <field name="listing_status" widget="badge"
+                                           decoration-success="listing_status == 'active'"
+                                           decoration-warning="listing_status == 'suppressed'"
+                                           decoration-danger="listing_status in ['inactive', 'deleted']"/>
+                                </div>
+                                <div class="text-muted small">
+                                    SKU: <field name="sku"/> | ASIN: <field name="asin"/>
+                                </div>
+                                <div class="mt-2 d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-primary">
+                                        <field name="price" widget="monetary"/>
+                                    </span>
+                                    <span class="badge" t-att-class="record.fulfillment_channel.raw_value == 'FBA' ? 'text-bg-info' : 'text-bg-secondary'">
+                                        <field name="fulfillment_channel"/>
+                                    </span>
+                                </div>
+                                <div class="mt-1 d-flex justify-content-between">
+                                    <span class="text-muted">
+                                        <i class="fa fa-cubes"/> <field name="quantity_available"/> in stock
+                                    </span>
+                                    <span t-if="record.buy_box_winner.raw_value" class="text-success">
+                                        <i class="fa fa-trophy"/> Buy Box
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="amazon_product_listing_view_search" model="ir.ui.view">
+        <field name="name">amazon.product.listing.search</field>
+        <field name="model">amazon.product.listing</field>
+        <field name="arch" type="xml">
+            <search string="Search Amazon Listings">
+                <field name="title"/>
+                <field name="sku"/>
+                <field name="asin"/>
+                <field name="product_id"/>
+                <field name="account_id"/>
+                <field name="marketplace_id"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('listing_status', '=', 'active')]"/>
+                <filter name="filter_inactive" string="Inactive" domain="[('listing_status', '=', 'inactive')]"/>
+                <filter name="filter_suppressed" string="Suppressed" domain="[('listing_status', '=', 'suppressed')]"/>
+                <separator/>
+                <filter name="filter_fba" string="FBA" domain="[('fulfillment_channel', '=', 'FBA')]"/>
+                <filter name="filter_fbm" string="FBM" domain="[('fulfillment_channel', '=', 'FBM')]"/>
+                <separator/>
+                <filter name="filter_buy_box" string="Buy Box Winners" domain="[('buy_box_winner', '=', True)]"/>
+                <filter name="filter_no_buy_box" string="Lost Buy Box" domain="[('buy_box_winner', '=', False), ('listing_status', '=', 'active')]"/>
+                <separator/>
+                <filter name="filter_low_stock" string="Low Stock" domain="[('quantity_available', '&lt;', 5)]"/>
+                <filter name="filter_out_of_stock" string="Out of Stock" domain="[('quantity_available', '=', 0)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_status" string="Status" context="{'group_by': 'listing_status'}"/>
+                    <filter name="group_marketplace" string="Marketplace" context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_fulfillment" string="Fulfillment" context="{'group_by': 'fulfillment_channel'}"/>
+                    <filter name="group_product_type" string="Product Type" context="{'group_by': 'product_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="amazon_product_listing_action" model="ir.actions.act_window">
+        <field name="name">Product Listings</field>
+        <field name="res_model">amazon.product.listing</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="amazon_product_listing_view_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Amazon listing
+            </p>
+            <p>
+                Manage your Amazon product listings. Link Odoo products to their 
+                Amazon counterparts and keep pricing, inventory, and content in sync.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon Browse Node Views                                      -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_browse_node_view_tree" model="ir.ui.view">
+        <field name="name">amazon.browse.node.tree</field>
+        <field name="model">amazon.browse.node</field>
+        <field name="arch" type="xml">
+            <list string="Browse Nodes">
+                <field name="name"/>
+                <field name="node_id"/>
+                <field name="marketplace_id"/>
+                <field name="parent_id"/>
+                <field name="path"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="amazon_browse_node_view_search" model="ir.ui.view">
+        <field name="name">amazon.browse.node.search</field>
+        <field name="model">amazon.browse.node</field>
+        <field name="arch" type="xml">
+            <search string="Search Browse Nodes">
+                <field name="name"/>
+                <field name="node_id"/>
+                <field name="marketplace_id"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_marketplace" string="Marketplace" context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_parent" string="Parent" context="{'group_by': 'parent_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!--
+        Amazon Connector Demo Data
+        ==========================
+        Sample data for testing and demonstration purposes.
+        This data is only loaded when installing the module in demo mode.
+        -->
+
+        <!-- Demo Amazon Account -->
+        <record id="demo_amazon_account_eu" model="amazon.account">
+            <field name="name">Demo EU Seller Account</field>
+            <field name="seller_id">A1DEMO12345EU</field>
+            <field name="environment">sandbox</field>
+            <field name="state">draft</field>
+            <field name="company_id" ref="base.main_company"/>
+            <field name="sync_products">True</field>
+            <field name="sync_orders">True</field>
+            <field name="sync_inventory">True</field>
+            <field name="fba_enabled">False</field>
+        </record>
+
+        <!-- Link demo account to marketplaces -->
+        <record id="demo_amazon_account_eu" model="amazon.account">
+            <field name="marketplace_ids" eval="[
+                (4, ref('amazon_connector.marketplace_de')),
+                (4, ref('amazon_connector.marketplace_uk')),
+                (4, ref('amazon_connector.marketplace_fr')),
+            ]"/>
+            <field name="default_marketplace_id" ref="amazon_connector.marketplace_de"/>
+        </record>
+
+    </data>
+</odoo>

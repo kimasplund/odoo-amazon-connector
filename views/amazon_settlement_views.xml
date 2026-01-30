@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- =================================================================== -->
+    <!-- AMAZON SETTLEMENT VIEWS                                             -->
+    <!-- =================================================================== -->
+    
+    <!-- Settlement List View -->
+    <record id="amazon_settlement_view_list" model="ir.ui.view">
+        <field name="name">amazon.settlement.list</field>
+        <field name="model">amazon.settlement</field>
+        <field name="arch" type="xml">
+            <list string="Settlement Reports" decoration-success="state == 'reconciled'"
+                  decoration-info="state == 'imported'" decoration-muted="state == 'draft'">
+                <field name="amazon_settlement_id"/>
+                <field name="account_id"/>
+                <field name="settlement_start_date"/>
+                <field name="settlement_end_date"/>
+                <field name="deposit_date"/>
+                <field name="total_amount" sum="Total"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="reconciliation_status" widget="progressbar" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'reconciled'"
+                       decoration-info="state == 'imported'"
+                       decoration-muted="state == 'draft'"/>
+            </list>
+        </field>
+    </record>
+    
+    <!-- Settlement Form View -->
+    <record id="amazon_settlement_view_form" model="ir.ui.view">
+        <field name="name">amazon.settlement.form</field>
+        <field name="model">amazon.settlement</field>
+        <field name="arch" type="xml">
+            <form string="Settlement Report">
+                <header>
+                    <button name="action_reconcile" string="Auto-Reconcile"
+                            type="object" class="btn-primary"
+                            invisible="state == 'reconciled'"/>
+                    <button name="action_create_journal_entries" string="Create Journal Entries"
+                            type="object" class="btn-secondary"
+                            invisible="state != 'imported'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,imported,reconciled"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" type="object"
+                                name="action_view_orders" icon="fa-shopping-cart">
+                            <field name="order_count" widget="statinfo" string="Orders"/>
+                        </button>
+                        <button class="oe_stat_button" type="object"
+                                name="action_view_invoices" icon="fa-file-text-o">
+                            <field name="invoice_count" widget="statinfo" string="Invoices"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="amazon_settlement_id" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Settlement Details">
+                            <field name="account_id"/>
+                            <field name="settlement_start_date"/>
+                            <field name="settlement_end_date"/>
+                            <field name="deposit_date"/>
+                        </group>
+                        <group string="Amounts">
+                            <field name="total_amount" widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="currency_id"/>
+                            <field name="reconciliation_status" widget="progressbar"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Summary Boxes -->
+                    <group string="Financial Summary">
+                        <div class="row">
+                            <div class="col-3">
+                                <div class="card bg-success-subtle">
+                                    <div class="card-body text-center">
+                                        <h4><field name="total_sales" widget="monetary"
+                                                   options="{'currency_field': 'currency_id'}"/></h4>
+                                        <p class="text-muted mb-0">Sales</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card bg-danger-subtle">
+                                    <div class="card-body text-center">
+                                        <h4><field name="total_refunds" widget="monetary"
+                                                   options="{'currency_field': 'currency_id'}"/></h4>
+                                        <p class="text-muted mb-0">Refunds</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card bg-warning-subtle">
+                                    <div class="card-body text-center">
+                                        <h4><field name="total_fees" widget="monetary"
+                                                   options="{'currency_field': 'currency_id'}"/></h4>
+                                        <p class="text-muted mb-0">Fees</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="card bg-info-subtle">
+                                    <div class="card-body text-center">
+                                        <h4><field name="total_other" widget="monetary"
+                                                   options="{'currency_field': 'currency_id'}"/></h4>
+                                        <p class="text-muted mb-0">Other</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </group>
+                    
+                    <notebook>
+                        <page string="Transaction Lines" name="lines">
+                            <field name="line_ids" nolabel="1">
+                                <list editable="bottom" decoration-success="reconciled"
+                                      decoration-danger="amount &lt; 0">
+                                    <field name="posted_date"/>
+                                    <field name="transaction_type"/>
+                                    <field name="amazon_order_id"/>
+                                    <field name="seller_sku"/>
+                                    <field name="quantity"/>
+                                    <field name="amount_type"/>
+                                    <field name="amount" sum="Total"/>
+                                    <field name="order_id"/>
+                                    <field name="reconciled" widget="boolean_toggle"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sales" name="sales">
+                            <field name="line_ids" domain="[('transaction_type', '=', 'Order')]"
+                                   nolabel="1" readonly="1">
+                                <list>
+                                    <field name="posted_date"/>
+                                    <field name="amazon_order_id"/>
+                                    <field name="seller_sku"/>
+                                    <field name="quantity"/>
+                                    <field name="amount"/>
+                                    <field name="reconciled"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Refunds" name="refunds">
+                            <field name="line_ids" domain="[('transaction_type', '=', 'Refund')]"
+                                   nolabel="1" readonly="1">
+                                <list>
+                                    <field name="posted_date"/>
+                                    <field name="amazon_order_id"/>
+                                    <field name="seller_sku"/>
+                                    <field name="quantity"/>
+                                    <field name="amount"/>
+                                    <field name="reconciled"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Fees" name="fees">
+                            <field name="line_ids" 
+                                   domain="[('transaction_type', 'in', ['Fee', 'FBA Fee', 'Commission'])]"
+                                   nolabel="1" readonly="1">
+                                <list>
+                                    <field name="posted_date"/>
+                                    <field name="amazon_order_id"/>
+                                    <field name="amount_type"/>
+                                    <field name="amount_description"/>
+                                    <field name="amount" sum="Total Fees"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Settlement Search View -->
+    <record id="amazon_settlement_view_search" model="ir.ui.view">
+        <field name="name">amazon.settlement.search</field>
+        <field name="model">amazon.settlement</field>
+        <field name="arch" type="xml">
+            <search string="Search Settlements">
+                <field name="amazon_settlement_id"/>
+                <field name="account_id"/>
+                <filter name="filter_imported" string="Imported"
+                        domain="[('state', '=', 'imported')]"/>
+                <filter name="filter_reconciled" string="Reconciled"
+                        domain="[('state', '=', 'reconciled')]"/>
+                <separator/>
+                <filter name="filter_this_month" string="This Month"
+                        domain="[('deposit_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_last_month" string="Last Month"
+                        domain="[('deposit_date', '&gt;=', (context_today() - relativedelta(months=1, day=1)).strftime('%Y-%m-%d')),
+                                 ('deposit_date', '&lt;', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_account" string="Account"
+                            context="{'group_by': 'account_id'}"/>
+                    <filter name="group_month" string="Deposit Month"
+                            context="{'group_by': 'deposit_date:month'}"/>
+                    <filter name="group_state" string="State"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- SETTLEMENT LINE VIEWS                                               -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_settlement_line_view_list" model="ir.ui.view">
+        <field name="name">amazon.settlement.line.list</field>
+        <field name="model">amazon.settlement.line</field>
+        <field name="arch" type="xml">
+            <list string="Settlement Lines" editable="bottom"
+                  decoration-success="reconciled"
+                  decoration-danger="amount &lt; 0">
+                <field name="settlement_id" optional="hide"/>
+                <field name="posted_date"/>
+                <field name="transaction_type"/>
+                <field name="amazon_order_id"/>
+                <field name="seller_sku"/>
+                <field name="marketplace_name" optional="hide"/>
+                <field name="quantity"/>
+                <field name="amount_type"/>
+                <field name="amount"/>
+                <field name="amount_description" optional="hide"/>
+                <field name="order_id" optional="show"/>
+                <field name="product_id" optional="show"/>
+                <field name="reconciled" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+    
+    <record id="amazon_settlement_line_view_search" model="ir.ui.view">
+        <field name="name">amazon.settlement.line.search</field>
+        <field name="model">amazon.settlement.line</field>
+        <field name="arch" type="xml">
+            <search string="Search Settlement Lines">
+                <field name="amazon_order_id"/>
+                <field name="seller_sku"/>
+                <field name="transaction_type"/>
+                <separator/>
+                <filter name="filter_sales" string="Sales"
+                        domain="[('transaction_type', '=', 'Order')]"/>
+                <filter name="filter_refunds" string="Refunds"
+                        domain="[('transaction_type', '=', 'Refund')]"/>
+                <filter name="filter_fees" string="Fees"
+                        domain="[('transaction_type', 'in', ['Fee', 'FBA Fee', 'Commission'])]"/>
+                <separator/>
+                <filter name="filter_reconciled" string="Reconciled"
+                        domain="[('reconciled', '=', True)]"/>
+                <filter name="filter_unreconciled" string="Unreconciled"
+                        domain="[('reconciled', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_settlement" string="Settlement"
+                            context="{'group_by': 'settlement_id'}"/>
+                    <filter name="group_type" string="Transaction Type"
+                            context="{'group_by': 'transaction_type'}"/>
+                    <filter name="group_date" string="Posted Date"
+                            context="{'group_by': 'posted_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- ACTIONS                                                             -->
+    <!-- =================================================================== -->
+    
+    <record id="action_amazon_settlement" model="ir.actions.act_window">
+        <field name="name">Settlement Reports</field>
+        <field name="res_model">amazon.settlement</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="amazon_settlement_view_search"/>
+        <field name="context">{'search_default_filter_this_month': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Import your first Amazon settlement report
+            </p>
+            <p>
+                Settlement reports contain all financial transactions from Amazon
+                including sales, refunds, fees, and adjustments.
+            </p>
+        </field>
+    </record>
+    
+    <record id="action_amazon_settlement_line" model="ir.actions.act_window">
+        <field name="name">Settlement Lines</field>
+        <field name="res_model">amazon.settlement.line</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="amazon_settlement_line_view_search"/>
+    </record>
+</odoo>

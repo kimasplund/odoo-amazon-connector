@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Amazon Account Views                                          -->
+    <!-- ============================================================ -->
+
+    <!-- Tree/List View -->
+    <record id="amazon_account_view_tree" model="ir.ui.view">
+        <field name="name">amazon.account.tree</field>
+        <field name="model">amazon.account</field>
+        <field name="arch" type="xml">
+            <list string="Amazon Accounts" decoration-danger="state == 'error'" decoration-muted="state == 'suspended'">
+                <field name="name"/>
+                <field name="seller_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="marketplace_ids" widget="many2many_tags"/>
+                <field name="state" widget="badge" decoration-success="state == 'active'" decoration-warning="state == 'pending'" decoration-danger="state == 'error'"/>
+                <field name="last_sync_date"/>
+                <field name="token_expiry" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="amazon_account_view_form" model="ir.ui.view">
+        <field name="name">amazon.account.form</field>
+        <field name="model">amazon.account</field>
+        <field name="arch" type="xml">
+            <form string="Amazon Account">
+                <header>
+                    <button name="action_connect" 
+                            string="Connect" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state == 'active'"
+                            icon="fa-link"/>
+                    <button name="action_disconnect" 
+                            string="Disconnect" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state != 'active'"
+                            icon="fa-unlink"
+                            confirm="Are you sure you want to disconnect this account?"/>
+                    <button name="action_refresh_token" 
+                            string="Refresh Token" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state != 'active'"
+                            icon="fa-refresh"/>
+                    <button name="action_sync_all" 
+                            string="Full Sync" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state != 'active'"
+                            icon="fa-sync"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,active"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_products" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-cubes"
+                                invisible="state != 'active'">
+                            <field name="product_count" widget="statinfo" string="Products"/>
+                        </button>
+                        <button name="action_view_orders" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-shopping-cart"
+                                invisible="state != 'active'">
+                            <field name="order_count" widget="statinfo" string="Orders"/>
+                        </button>
+                        <button name="action_view_fba_shipments" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-truck"
+                                invisible="state != 'active'">
+                            <field name="fba_shipment_count" widget="statinfo" string="FBA Shipments"/>
+                        </button>
+                        <button name="action_view_settlements" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-money"
+                                invisible="state != 'active'">
+                            <field name="settlement_count" widget="statinfo" string="Settlements"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Disconnected" bg_color="text-bg-danger" invisible="state not in ['error', 'suspended']"/>
+                    <div class="oe_title">
+                        <label for="name" string="Account Name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g., My Amazon EU Account"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Account Information">
+                            <field name="seller_id" placeholder="Your Amazon Seller ID"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="marketplace_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                            <field name="default_marketplace_id" domain="[('id', 'in', marketplace_ids)]"/>
+                        </group>
+                        <group string="Connection Status">
+                            <field name="last_sync_date"/>
+                            <field name="token_expiry"/>
+                            <field name="sync_status"/>
+                            <field name="error_message" invisible="not error_message"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="API Credentials" name="credentials">
+                            <div class="alert alert-warning" role="alert" invisible="state == 'active'">
+                                <i class="fa fa-info-circle"/> Configure your SP-API credentials from Amazon Seller Central. 
+                                Keep your credentials secure - they provide full access to your seller account.
+                            </div>
+                            <group>
+                                <group string="LWA Credentials (Login with Amazon)">
+                                    <field name="lwa_client_id" placeholder="amzn1.application-oa2-client.xxx"/>
+                                    <field name="lwa_client_secret" password="True"/>
+                                    <field name="refresh_token" password="True"/>
+                                </group>
+                                <group string="AWS Credentials (for SP-API)">
+                                    <field name="aws_access_key"/>
+                                    <field name="aws_secret_key" password="True"/>
+                                    <field name="role_arn" placeholder="arn:aws:iam::xxx:role/xxx"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Environment">
+                                    <field name="sandbox_mode"/>
+                                    <field name="api_region"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Sync Settings" name="sync">
+                            <group>
+                                <group string="Product Sync">
+                                    <field name="sync_products"/>
+                                    <field name="product_sync_interval" invisible="not sync_products"/>
+                                    <field name="auto_create_products"/>
+                                    <field name="product_default_category_id" invisible="not auto_create_products"/>
+                                </group>
+                                <group string="Order Sync">
+                                    <field name="sync_orders"/>
+                                    <field name="order_sync_interval" invisible="not sync_orders"/>
+                                    <field name="auto_confirm_orders"/>
+                                    <field name="order_days_back"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Inventory Sync">
+                                    <field name="sync_inventory"/>
+                                    <field name="inventory_sync_interval" invisible="not sync_inventory"/>
+                                    <field name="warehouse_id"/>
+                                </group>
+                                <group string="Pricing Sync">
+                                    <field name="sync_pricing"/>
+                                    <field name="pricing_sync_interval" invisible="not sync_pricing"/>
+                                    <field name="use_pricelist"/>
+                                    <field name="pricelist_id" invisible="not use_pricelist"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="FBA Settings" name="fba">
+                            <group>
+                                <group string="FBA Configuration">
+                                    <field name="fba_enabled"/>
+                                    <field name="fba_warehouse_id" invisible="not fba_enabled"/>
+                                    <field name="fba_location_id" invisible="not fba_enabled"/>
+                                    <field name="mcf_enabled" invisible="not fba_enabled"/>
+                                </group>
+                                <group string="Fulfillment Preferences">
+                                    <field name="default_fulfillment_channel"/>
+                                    <field name="auto_route_fba"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Defaults" name="defaults">
+                            <group>
+                                <group string="Product Defaults">
+                                    <field name="default_product_type"/>
+                                    <field name="default_condition"/>
+                                    <field name="default_tax_code"/>
+                                </group>
+                                <group string="Order Defaults">
+                                    <field name="default_sales_team_id"/>
+                                    <field name="default_user_id"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Logs" name="logs">
+                            <field name="log_ids" readonly="1" nolabel="1">
+                                <list string="Sync Logs" default_order="create_date desc" limit="50">
+                                    <field name="create_date"/>
+                                    <field name="operation"/>
+                                    <field name="status" widget="badge" 
+                                           decoration-success="status == 'success'" 
+                                           decoration-danger="status == 'error'" 
+                                           decoration-warning="status == 'warning'"/>
+                                    <field name="message"/>
+                                    <field name="record_count"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="amazon_account_view_kanban" model="ir.ui.view">
+        <field name="name">amazon.account.kanban</field>
+        <field name="model">amazon.account</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" sample="1">
+                <field name="name"/>
+                <field name="seller_id"/>
+                <field name="state"/>
+                <field name="marketplace_ids"/>
+                <field name="product_count"/>
+                <field name="order_count"/>
+                <field name="last_sync_date"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <strong class="o_kanban_record_title fs-5">
+                                    <field name="name"/>
+                                </strong>
+                                <field name="state" widget="badge" 
+                                       decoration-success="state == 'active'" 
+                                       decoration-warning="state == 'pending'" 
+                                       decoration-danger="state == 'error'"/>
+                            </div>
+                            <div class="text-muted mb-2">
+                                <i class="fa fa-amazon"/> Seller: <field name="seller_id"/>
+                            </div>
+                            <div class="mb-2">
+                                <field name="marketplace_ids" widget="many2many_tags"/>
+                            </div>
+                            <div class="row">
+                                <div class="col-4 text-center">
+                                    <span class="fw-bold text-primary"><field name="product_count"/></span>
+                                    <div class="text-muted small">Products</div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <span class="fw-bold text-success"><field name="order_count"/></span>
+                                    <div class="text-muted small">Orders</div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <span class="text-muted small">
+                                        <field name="last_sync_date" widget="date"/>
+                                    </span>
+                                    <div class="text-muted small">Last Sync</div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="amazon_account_view_search" model="ir.ui.view">
+        <field name="name">amazon.account.search</field>
+        <field name="model">amazon.account</field>
+        <field name="arch" type="xml">
+            <search string="Search Amazon Accounts">
+                <field name="name"/>
+                <field name="seller_id"/>
+                <field name="marketplace_ids"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('state', '=', 'active')]"/>
+                <filter name="filter_pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                <filter name="filter_error" string="Error" domain="[('state', '=', 'error')]"/>
+                <separator/>
+                <filter name="filter_fba" string="FBA Enabled" domain="[('fba_enabled', '=', True)]"/>
+                <filter name="filter_sandbox" string="Sandbox Mode" domain="[('sandbox_mode', '=', True)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_company" string="Company" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="amazon_account_action" model="ir.actions.act_window">
+        <field name="name">Amazon Accounts</field>
+        <field name="res_model">amazon.account</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="amazon_account_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Connect your Amazon Seller Account
+            </p>
+            <p>
+                Configure your Amazon Seller Central credentials to start syncing 
+                products, orders, and inventory with your Odoo instance.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon Sync Log Views                                         -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_sync_log_view_tree" model="ir.ui.view">
+        <field name="name">amazon.sync.log.tree</field>
+        <field name="model">amazon.sync.log</field>
+        <field name="arch" type="xml">
+            <list string="Sync Logs" default_order="create_date desc" create="0" edit="0">
+                <field name="create_date"/>
+                <field name="account_id"/>
+                <field name="operation"/>
+                <field name="status" widget="badge" 
+                       decoration-success="status == 'success'" 
+                       decoration-danger="status == 'error'" 
+                       decoration-warning="status == 'warning'"/>
+                <field name="message"/>
+                <field name="record_count"/>
+                <field name="duration"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="amazon_sync_log_view_form" model="ir.ui.view">
+        <field name="name">amazon.sync.log.form</field>
+        <field name="model">amazon.sync.log</field>
+        <field name="arch" type="xml">
+            <form string="Sync Log" create="0" edit="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="create_date"/>
+                            <field name="account_id"/>
+                            <field name="operation"/>
+                            <field name="status"/>
+                        </group>
+                        <group>
+                            <field name="record_count"/>
+                            <field name="duration"/>
+                            <field name="marketplace_id"/>
+                        </group>
+                    </group>
+                    <group string="Details">
+                        <field name="message" readonly="1"/>
+                        <field name="request_data" readonly="1" groups="base.group_no_one"/>
+                        <field name="response_data" readonly="1" groups="base.group_no_one"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="amazon_sync_log_view_search" model="ir.ui.view">
+        <field name="name">amazon.sync.log.search</field>
+        <field name="model">amazon.sync.log</field>
+        <field name="arch" type="xml">
+            <search string="Search Sync Logs">
+                <field name="account_id"/>
+                <field name="operation"/>
+                <field name="message"/>
+                <separator/>
+                <filter name="filter_today" string="Today" domain="[('create_date', '>=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
+                <filter name="filter_week" string="This Week" domain="[('create_date', '>=', (context_today() - datetime.timedelta(days=7)))]"/>
+                <separator/>
+                <filter name="filter_success" string="Success" domain="[('status', '=', 'success')]"/>
+                <filter name="filter_error" string="Errors" domain="[('status', '=', 'error')]"/>
+                <filter name="filter_warning" string="Warnings" domain="[('status', '=', 'warning')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_operation" string="Operation" context="{'group_by': 'operation'}"/>
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by': 'create_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="amazon_sync_log_action" model="ir.actions.act_window">
+        <field name="name">Sync Logs</field>
+        <field name="res_model">amazon.sync.log</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="amazon_sync_log_view_search"/>
+        <field name="context">{'search_default_filter_today': 1}</field>
+    </record>
+
+</odoo>

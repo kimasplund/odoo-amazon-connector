@@ -1,0 +1,689 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ================================================================== -->
+    <!-- PRICING RULES -->
+    <!-- ================================================================== -->
+    
+    <!-- Pricing Rule Tree View -->
+    <record id="view_amazon_pricing_rule_tree" model="ir.ui.view">
+        <field name="name">amazon.pricing.rule.tree</field>
+        <field name="model">amazon.pricing.rule</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="not is_active">
+                <field name="name"/>
+                <field name="rule_type"/>
+                <field name="product_listing_id" optional="show"/>
+                <field name="marketplace_id" optional="show"/>
+                <field name="min_price" optional="show"/>
+                <field name="max_price" optional="show"/>
+                <field name="target_margin_percent" optional="show"/>
+                <field name="priority"/>
+                <field name="is_active" widget="boolean_toggle"/>
+                <field name="times_applied" optional="hide"/>
+                <field name="last_applied" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Pricing Rule Form View -->
+    <record id="view_amazon_pricing_rule_form" model="ir.ui.view">
+        <field name="name">amazon.pricing.rule.form</field>
+        <field name="model">amazon.pricing.rule</field>
+        <field name="arch" type="xml">
+            <form string="Pricing Rule">
+                <header>
+                    <button name="action_test_rule" string="Test Rule" 
+                            type="object" class="oe_highlight"
+                            invisible="not product_listing_id"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" type="object"
+                                name="action_test_rule" icon="fa-play"
+                                invisible="not product_listing_id">
+                            <span>Test</span>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" text="Inactive" bg_color="bg-danger"
+                            invisible="is_active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="Rule Name..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Scope">
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                            <field name="product_listing_id"/>
+                            <field name="category_ids" widget="many2many_tags"/>
+                            <field name="priority"/>
+                            <field name="is_active"/>
+                        </group>
+                        <group string="Strategy">
+                            <field name="rule_type"/>
+                            <field name="competitor_type"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Pricing" name="pricing">
+                            <group>
+                                <group string="Price Guardrails">
+                                    <field name="min_price"/>
+                                    <field name="max_price"/>
+                                    <field name="currency_id" invisible="1"/>
+                                </group>
+                                <group string="Margin Settings">
+                                    <field name="target_margin_percent"
+                                           invisible="rule_type != 'target_margin'"/>
+                                    <field name="min_margin_percent"/>
+                                    <field name="include_fba_fees"/>
+                                    <field name="include_referral_fee"/>
+                                </group>
+                            </group>
+                            <group invisible="rule_type not in ('beat_by_amount', 'beat_by_percent')">
+                                <group string="Beat Settings">
+                                    <field name="beat_amount" invisible="rule_type != 'beat_by_amount'"/>
+                                    <field name="beat_percent" invisible="rule_type != 'beat_by_percent'"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Advanced" name="advanced">
+                            <group>
+                                <group string="Price Increase">
+                                    <field name="raise_price_enabled"/>
+                                    <field name="max_raise_percent" invisible="not raise_price_enabled"/>
+                                </group>
+                                <group string="Price Decrease">
+                                    <field name="max_drop_percent"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Rate Limiting">
+                                    <field name="cooldown_hours"/>
+                                </group>
+                                <group string="Outlier Handling">
+                                    <field name="ignore_outliers"/>
+                                    <field name="outlier_threshold" invisible="not ignore_outliers"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Statistics" name="stats">
+                            <group>
+                                <field name="times_applied"/>
+                                <field name="last_applied"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Pricing Rule Action -->
+    <record id="action_amazon_pricing_rule" model="ir.actions.act_window">
+        <field name="name">Pricing Rules</field>
+        <field name="res_model">amazon.pricing.rule</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_is_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first pricing rule
+            </p>
+            <p>
+                Pricing rules automate repricing decisions based on:
+                <ul>
+                    <li>Competitor prices</li>
+                    <li>Target profit margins</li>
+                    <li>Buy Box status</li>
+                </ul>
+            </p>
+        </field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- COMPETITOR PRICES -->
+    <!-- ================================================================== -->
+    
+    <!-- Competitor Price Tree View -->
+    <record id="view_amazon_competitor_price_tree" model="ir.ui.view">
+        <field name="name">amazon.competitor.price.tree</field>
+        <field name="model">amazon.competitor.price</field>
+        <field name="arch" type="xml">
+            <tree create="false" default_order="captured_at desc">
+                <field name="product_listing_id"/>
+                <field name="competitor_seller"/>
+                <field name="competitor_price"/>
+                <field name="competitor_shipping"/>
+                <field name="landed_price"/>
+                <field name="is_fba" widget="boolean"/>
+                <field name="is_buy_box_winner" widget="boolean"/>
+                <field name="is_prime" widget="boolean"/>
+                <field name="price_rank"/>
+                <field name="captured_at"/>
+                <field name="currency_id" column_invisible="True"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Competitor Price Form View -->
+    <record id="view_amazon_competitor_price_form" model="ir.ui.view">
+        <field name="name">amazon.competitor.price.form</field>
+        <field name="model">amazon.competitor.price</field>
+        <field name="arch" type="xml">
+            <form string="Competitor Price" create="false">
+                <sheet>
+                    <group>
+                        <group string="Product">
+                            <field name="product_listing_id"/>
+                            <field name="marketplace_id"/>
+                        </group>
+                        <group string="Competitor">
+                            <field name="competitor_seller"/>
+                            <field name="competitor_seller_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Pricing">
+                            <field name="competitor_price"/>
+                            <field name="competitor_shipping"/>
+                            <field name="landed_price"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Details">
+                            <field name="condition"/>
+                            <field name="is_fba"/>
+                            <field name="is_buy_box_winner"/>
+                            <field name="is_prime"/>
+                            <field name="availability"/>
+                            <field name="price_rank"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="captured_at"/>
+                        <field name="is_our_offer"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Competitor Price Search View -->
+    <record id="view_amazon_competitor_price_search" model="ir.ui.view">
+        <field name="name">amazon.competitor.price.search</field>
+        <field name="model">amazon.competitor.price</field>
+        <field name="arch" type="xml">
+            <search string="Competitor Prices">
+                <field name="product_listing_id"/>
+                <field name="competitor_seller"/>
+                <filter name="is_buybox" string="Buy Box Winner" 
+                        domain="[('is_buy_box_winner', '=', True)]"/>
+                <filter name="is_fba" string="FBA Only" 
+                        domain="[('is_fba', '=', True)]"/>
+                <filter name="is_fbm" string="FBM Only" 
+                        domain="[('is_fba', '=', False)]"/>
+                <separator/>
+                <filter name="today" string="Today" 
+                        domain="[('captured_at', '>=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
+                <filter name="last_24h" string="Last 24 Hours" 
+                        domain="[('captured_at', '>=', (context_today() - relativedelta(days=1)))]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_listing" string="Listing" 
+                            context="{'group_by': 'product_listing_id'}"/>
+                    <filter name="group_seller" string="Seller" 
+                            context="{'group_by': 'competitor_seller'}"/>
+                    <filter name="group_date" string="Date" 
+                            context="{'group_by': 'captured_at:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- Competitor Price Action -->
+    <record id="action_amazon_competitor_price" model="ir.actions.act_window">
+        <field name="name">Competitor Prices</field>
+        <field name="res_model">amazon.competitor.price</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_last_24h': 1}</field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- PRICING RECOMMENDATIONS -->
+    <!-- ================================================================== -->
+    
+    <!-- Pricing Recommendation Kanban View -->
+    <record id="view_amazon_pricing_recommendation_kanban" model="ir.ui.view">
+        <field name="name">amazon.pricing.recommendation.kanban</field>
+        <field name="model">amazon.pricing.recommendation</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="status" class="o_kanban_small_column"
+                    records_draggable="false">
+                <field name="status"/>
+                <field name="confidence"/>
+                <field name="price_change_percent"/>
+                <field name="currency_id"/>
+                <progressbar field="confidence" colors='{"low": "danger", "medium": "warning", "high": "success"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="product_listing_id"/>
+                                    </strong>
+                                </div>
+                                <span t-att-class="'badge ' + (record.confidence.raw_value == 'high' ? 'text-bg-success' : record.confidence.raw_value == 'medium' ? 'text-bg-warning' : 'text-bg-danger')">
+                                    <field name="confidence"/>
+                                </span>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div class="d-flex justify-content-between">
+                                    <span>Current:</span>
+                                    <strong><field name="current_price" widget="monetary"/></strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Recommended:</span>
+                                    <strong class="text-primary"><field name="recommended_price" widget="monetary"/></strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Change:</span>
+                                    <span t-att-class="record.price_change_percent.raw_value > 0 ? 'text-success' : 'text-danger'">
+                                        <field name="price_change_percent"/>%
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_bottom mt-2">
+                                <div class="oe_kanban_bottom_left">
+                                    <field name="recommendation_reason" widget="badge"/>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <field name="we_have_buybox" widget="boolean"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+    
+    <!-- Pricing Recommendation Tree View -->
+    <record id="view_amazon_pricing_recommendation_tree" model="ir.ui.view">
+        <field name="name">amazon.pricing.recommendation.tree</field>
+        <field name="model">amazon.pricing.recommendation</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="status in ('dismissed', 'expired')"
+                  decoration-success="status == 'applied'">
+                <field name="product_listing_id"/>
+                <field name="current_price"/>
+                <field name="recommended_price"/>
+                <field name="price_change"/>
+                <field name="price_change_percent" widget="percentage"/>
+                <field name="recommendation_reason" widget="badge"/>
+                <field name="confidence" widget="badge" 
+                       decoration-success="confidence == 'high'"
+                       decoration-warning="confidence == 'medium'"
+                       decoration-danger="confidence == 'low'"/>
+                <field name="we_have_buybox" widget="boolean"/>
+                <field name="status" widget="badge"
+                       decoration-info="status == 'pending'"
+                       decoration-success="status == 'applied'"
+                       decoration-muted="status == 'dismissed'"/>
+                <field name="create_date" optional="hide"/>
+                <field name="currency_id" column_invisible="True"/>
+                <button name="action_apply_price" string="Apply" type="object"
+                        class="btn-success" icon="fa-check"
+                        invisible="status != 'pending'"/>
+                <button name="action_dismiss_silent" string="Dismiss" type="object"
+                        class="btn-secondary" icon="fa-times"
+                        invisible="status != 'pending'"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Pricing Recommendation Form View -->
+    <record id="view_amazon_pricing_recommendation_form" model="ir.ui.view">
+        <field name="name">amazon.pricing.recommendation.form</field>
+        <field name="model">amazon.pricing.recommendation</field>
+        <field name="arch" type="xml">
+            <form string="Pricing Recommendation">
+                <header>
+                    <button name="action_apply_price" string="Apply Price" 
+                            type="object" class="oe_highlight"
+                            invisible="status != 'pending'"/>
+                    <button name="action_approve" string="Approve" 
+                            type="object"
+                            invisible="status != 'pending'"/>
+                    <button name="action_dismiss" string="Dismiss" 
+                            type="object"
+                            invisible="status != 'pending'"/>
+                    <field name="status" widget="statusbar" 
+                           statusbar_visible="pending,approved,applied"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_listing" string="View Listing"
+                                type="object" class="oe_stat_button" icon="fa-cube"/>
+                        <button name="action_view_competitors" string="Competitors"
+                                type="object" class="oe_stat_button" icon="fa-users"/>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="product_listing_id" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Pricing">
+                            <field name="current_price"/>
+                            <field name="recommended_price"/>
+                            <field name="price_change"/>
+                            <field name="price_change_percent" widget="percentage"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Analysis">
+                            <field name="recommendation_reason"/>
+                            <field name="confidence"/>
+                            <field name="pricing_rule_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Competition">
+                            <field name="current_buybox_price"/>
+                            <field name="we_have_buybox"/>
+                            <field name="competitor_count"/>
+                            <field name="lowest_competitor_price"/>
+                        </group>
+                        <group string="Margin">
+                            <field name="current_margin" widget="percentage"/>
+                            <field name="projected_margin" widget="percentage"/>
+                            <field name="margin_impact" widget="percentage"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="reason_details"/>
+                        <field name="expected_impact"/>
+                    </group>
+                    <group string="Status" invisible="status == 'pending'">
+                        <field name="applied_at" invisible="status != 'applied'"/>
+                        <field name="applied_by" invisible="status != 'applied'"/>
+                        <field name="dismissed_reason" invisible="status != 'dismissed'"/>
+                        <field name="valid_until"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Pricing Recommendation Search View -->
+    <record id="view_amazon_pricing_recommendation_search" model="ir.ui.view">
+        <field name="name">amazon.pricing.recommendation.search</field>
+        <field name="model">amazon.pricing.recommendation</field>
+        <field name="arch" type="xml">
+            <search string="Pricing Recommendations">
+                <field name="product_listing_id"/>
+                <field name="recommendation_reason"/>
+                <filter name="pending" string="Pending" 
+                        domain="[('status', '=', 'pending')]"/>
+                <filter name="approved" string="Approved" 
+                        domain="[('status', '=', 'approved')]"/>
+                <filter name="applied" string="Applied" 
+                        domain="[('status', '=', 'applied')]"/>
+                <separator/>
+                <filter name="high_confidence" string="High Confidence" 
+                        domain="[('confidence', '=', 'high')]"/>
+                <filter name="price_increase" string="Price Increase" 
+                        domain="[('price_change', '>', 0)]"/>
+                <filter name="price_decrease" string="Price Decrease" 
+                        domain="[('price_change', '&lt;', 0)]"/>
+                <separator/>
+                <filter name="we_have_buybox" string="We Have Buy Box" 
+                        domain="[('we_have_buybox', '=', True)]"/>
+                <filter name="no_buybox" string="No Buy Box" 
+                        domain="[('we_have_buybox', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_status" string="Status" 
+                            context="{'group_by': 'status'}"/>
+                    <filter name="group_reason" string="Reason" 
+                            context="{'group_by': 'recommendation_reason'}"/>
+                    <filter name="group_confidence" string="Confidence" 
+                            context="{'group_by': 'confidence'}"/>
+                    <filter name="group_marketplace" string="Marketplace" 
+                            context="{'group_by': 'marketplace_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- Pricing Recommendation Action -->
+    <record id="action_amazon_pricing_recommendation" model="ir.actions.act_window">
+        <field name="name">Pricing Recommendations</field>
+        <field name="res_model">amazon.pricing.recommendation</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="context">{'search_default_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No pricing recommendations yet
+            </p>
+            <p>
+                Recommendations are generated automatically based on your pricing rules
+                and competitor analysis.
+            </p>
+        </field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- PRICE HISTORY -->
+    <!-- ================================================================== -->
+    
+    <!-- Price History Tree View -->
+    <record id="view_amazon_price_history_tree" model="ir.ui.view">
+        <field name="name">amazon.price.history.tree</field>
+        <field name="model">amazon.price.history</field>
+        <field name="arch" type="xml">
+            <tree create="false" default_order="change_date desc">
+                <field name="product_listing_id"/>
+                <field name="old_price"/>
+                <field name="new_price"/>
+                <field name="price_change"/>
+                <field name="change_percent" widget="percentage"/>
+                <field name="change_reason" widget="badge"/>
+                <field name="change_date"/>
+                <field name="user_id"/>
+                <field name="currency_id" column_invisible="True"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Price History Action -->
+    <record id="action_amazon_price_history" model="ir.actions.act_window">
+        <field name="name">Price History</field>
+        <field name="res_model">amazon.price.history</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- BULK REPRICE WIZARD -->
+    <!-- ================================================================== -->
+    
+    <record id="view_amazon_bulk_reprice_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.bulk.reprice.wizard.form</field>
+        <field name="model">amazon.bulk.reprice.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Bulk Reprice">
+                <sheet>
+                    <group invisible="state != 'config'">
+                        <group string="Selection">
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                            <field name="select_all"/>
+                            <field name="product_listing_ids" widget="many2many_tags"
+                                   invisible="select_all"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Strategy">
+                            <field name="strategy"/>
+                            <field name="pricing_rule_id" invisible="strategy != 'apply_rule'"/>
+                            <field name="beat_amount" invisible="strategy != 'beat_by_amount'"/>
+                            <field name="beat_percent" invisible="strategy != 'beat_by_percent'"/>
+                            <field name="target_margin" invisible="strategy != 'target_margin'"/>
+                            <field name="fixed_price" invisible="strategy != 'fixed_price'"/>
+                            <field name="adjust_percent" invisible="strategy != 'adjust_percent'"/>
+                        </group>
+                    </group>
+                    <group invisible="state != 'config'" string="Guardrails">
+                        <group>
+                            <field name="apply_min_price"/>
+                            <field name="apply_max_price"/>
+                            <field name="global_min_price"/>
+                            <field name="global_max_price"/>
+                        </group>
+                        <group>
+                            <field name="min_margin"/>
+                            <field name="max_change_percent"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Preview State -->
+                    <group invisible="state != 'preview'" string="Summary">
+                        <group>
+                            <field name="total_listings"/>
+                            <field name="listings_to_change"/>
+                            <field name="avg_change_percent" widget="percentage"/>
+                        </group>
+                        <group>
+                            <field name="total_price_decrease"/>
+                            <field name="total_price_increase"/>
+                        </group>
+                    </group>
+                    
+                    <field name="preview_line_ids" invisible="state != 'preview'">
+                        <tree editable="bottom" decoration-warning="warnings"
+                              decoration-muted="not include">
+                            <field name="include" widget="boolean_toggle"/>
+                            <field name="sku"/>
+                            <field name="title" optional="hide"/>
+                            <field name="current_price"/>
+                            <field name="new_price"/>
+                            <field name="price_change"/>
+                            <field name="change_percent" widget="percentage"/>
+                            <field name="lowest_competitor"/>
+                            <field name="buybox_price" optional="show"/>
+                            <field name="we_have_buybox" widget="boolean"/>
+                            <field name="reason"/>
+                            <field name="warnings" optional="show"/>
+                            <field name="currency_id" column_invisible="True"/>
+                            <field name="product_listing_id" column_invisible="True"/>
+                        </tree>
+                    </field>
+                    
+                    <!-- Done State -->
+                    <group invisible="state != 'done'">
+                        <group string="Results">
+                            <field name="success_count"/>
+                            <field name="error_count"/>
+                        </group>
+                    </group>
+                    <group invisible="state != 'done' or not error_message">
+                        <field name="error_message" readonly="1"/>
+                    </group>
+                    
+                    <field name="state" invisible="1"/>
+                </sheet>
+                <footer>
+                    <button string="Generate Preview" name="action_generate_preview"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'config'"/>
+                    <button string="Select All" name="action_select_all_preview"
+                            type="object"
+                            invisible="state != 'preview'"/>
+                    <button string="Deselect All" name="action_deselect_all_preview"
+                            type="object"
+                            invisible="state != 'preview'"/>
+                    <button string="Apply Prices" name="action_apply_prices"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'preview'"
+                            confirm="Are you sure you want to apply these price changes?"/>
+                    <button string="Back" name="action_back_to_config"
+                            type="object"
+                            invisible="state != 'preview'"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Bulk Reprice Action -->
+    <record id="action_amazon_bulk_reprice_wizard" model="ir.actions.act_window">
+        <field name="name">Bulk Reprice</field>
+        <field name="res_model">amazon.bulk.reprice.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- DISMISS WIZARD -->
+    <!-- ================================================================== -->
+    
+    <record id="view_amazon_pricing_recommendation_dismiss_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.pricing.recommendation.dismiss.wizard.form</field>
+        <field name="model">amazon.pricing.recommendation.dismiss.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Dismiss Recommendation">
+                <group>
+                    <field name="recommendation_ids" widget="many2many_tags" readonly="1"/>
+                    <field name="dismiss_reason"/>
+                    <field name="notes" placeholder="Additional notes..."/>
+                </group>
+                <footer>
+                    <button string="Dismiss" name="action_dismiss" type="object" 
+                            class="oe_highlight"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- MENUS -->
+    <!-- ================================================================== -->
+    
+    <menuitem id="menu_amazon_pricing_root"
+              name="Pricing"
+              parent="amazon_connector.menu_amazon_root"
+              sequence="35"/>
+    
+    <menuitem id="menu_amazon_pricing_recommendations"
+              name="Recommendations"
+              parent="menu_amazon_pricing_root"
+              action="action_amazon_pricing_recommendation"
+              sequence="10"/>
+    
+    <menuitem id="menu_amazon_pricing_rules"
+              name="Pricing Rules"
+              parent="menu_amazon_pricing_root"
+              action="action_amazon_pricing_rule"
+              sequence="20"/>
+    
+    <menuitem id="menu_amazon_competitor_prices"
+              name="Competitor Prices"
+              parent="menu_amazon_pricing_root"
+              action="action_amazon_competitor_price"
+              sequence="30"/>
+    
+    <menuitem id="menu_amazon_price_history"
+              name="Price History"
+              parent="menu_amazon_pricing_root"
+              action="action_amazon_price_history"
+              sequence="40"/>
+    
+    <menuitem id="menu_amazon_bulk_reprice"
+              name="Bulk Reprice"
+              parent="menu_amazon_pricing_root"
+              action="action_amazon_bulk_reprice_wizard"
+              sequence="50"/>
+    
+</odoo>

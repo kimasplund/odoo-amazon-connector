@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Product Template Inherited Views                              -->
+    <!-- ============================================================ -->
+
+    <!-- Inherit Product Form View -->
+    <record id="product_template_view_form_amazon" model="ir.ui.view">
+        <field name="name">product.template.form.amazon</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Add Amazon button box -->
+            <div name="button_box" position="inside">
+                <button name="action_view_amazon_listings" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-amazon"
+                        invisible="amazon_listing_count == 0">
+                    <field name="amazon_listing_count" widget="statinfo" string="Amazon"/>
+                </button>
+            </div>
+
+            <!-- Add Amazon tab in the notebook -->
+            <page name="sales" position="after">
+                <page string="Amazon" name="amazon" invisible="not amazon_listing_ids">
+                    <group>
+                        <group string="Amazon Identifiers">
+                            <field name="amazon_brand"/>
+                            <field name="amazon_manufacturer"/>
+                            <field name="amazon_product_type"/>
+                        </group>
+                        <group string="Defaults">
+                            <field name="amazon_default_condition"/>
+                            <field name="amazon_default_fulfillment"/>
+                        </group>
+                    </group>
+                    <group string="Listings">
+                        <field name="amazon_listing_ids" nolabel="1" readonly="1">
+                            <list>
+                                <field name="marketplace_id"/>
+                                <field name="sku"/>
+                                <field name="asin"/>
+                                <field name="price" widget="monetary"/>
+                                <field name="currency_id" column_invisible="1"/>
+                                <field name="quantity_available"/>
+                                <field name="fulfillment_channel" widget="badge"/>
+                                <field name="listing_status" widget="badge"
+                                       decoration-success="listing_status == 'active'"
+                                       decoration-warning="listing_status == 'suppressed'"
+                                       decoration-danger="listing_status in ['inactive', 'deleted']"/>
+                            </list>
+                        </field>
+                    </group>
+                    <group string="Content" col="1">
+                        <group string="Bullet Points">
+                            <field name="amazon_bullet_1" placeholder="Key feature 1"/>
+                            <field name="amazon_bullet_2" placeholder="Key feature 2"/>
+                            <field name="amazon_bullet_3" placeholder="Key feature 3"/>
+                            <field name="amazon_bullet_4" placeholder="Key feature 4"/>
+                            <field name="amazon_bullet_5" placeholder="Key feature 5"/>
+                        </group>
+                        <group string="Search Terms">
+                            <field name="amazon_search_terms" nolabel="1" placeholder="comma, separated, keywords"/>
+                        </group>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <!-- Inherit Product Tree View -->
+    <record id="product_template_view_tree_amazon" model="ir.ui.view">
+        <field name="name">product.template.tree.amazon</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="default_code" position="after">
+                <field name="amazon_listing_count" string="Amazon" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Inherit Product Search View -->
+    <record id="product_template_view_search_amazon" model="ir.ui.view">
+        <field name="name">product.template.search.amazon</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_search_view"/>
+        <field name="arch" type="xml">
+            <filter name="filter_to_sell" position="after">
+                <separator/>
+                <filter name="filter_on_amazon" string="On Amazon" domain="[('amazon_listing_count', '>', 0)]"/>
+                <filter name="filter_not_on_amazon" string="Not on Amazon" domain="[('amazon_listing_count', '=', 0)]"/>
+            </filter>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Product Product Inherited Views                               -->
+    <!-- ============================================================ -->
+
+    <!-- Inherit Product Variant Form View -->
+    <record id="product_product_view_form_amazon" model="ir.ui.view">
+        <field name="name">product.product.form.amazon</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_view_amazon_listings" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-amazon"
+                        invisible="amazon_variant_listing_count == 0">
+                    <field name="amazon_variant_listing_count" widget="statinfo" string="Amazon"/>
+                </button>
+            </div>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Actions for Amazon from Product                               -->
+    <!-- ============================================================ -->
+
+    <!-- Action to create Amazon listing from product -->
+    <record id="action_create_amazon_listing" model="ir.actions.act_window">
+        <field name="name">Create Amazon Listing</field>
+        <field name="res_model">amazon.product.listing</field>
+        <field name="view_mode">form</field>
+        <field name="context">{'default_product_id': active_id}</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Server action to export products to Amazon -->
+    <record id="action_export_products_to_amazon" model="ir.actions.server">
+        <field name="name">Export to Amazon</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+action = env['amazon.product.listing'].action_export_products(records)
+        </field>
+    </record>
+
+</odoo>

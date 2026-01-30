@@ -1,0 +1,941 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- =================================================================== -->
+    <!-- PRODUCT EXPORT WIZARD                                               -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_product_export_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.product.export.wizard.form</field>
+        <field name="model">amazon.product.export.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Export Products to Amazon">
+                <header>
+                    <field name="state" widget="statusbar" 
+                           statusbar_visible="draft,confirm,progress,done"/>
+                </header>
+                <sheet>
+                    <!-- Progress Bar (shown during export) -->
+                    <div invisible="state not in ('progress',)">
+                        <field name="progress_percent" widget="progressbar"/>
+                        <p class="text-muted text-center">
+                            <field name="progress_message" readonly="1"/>
+                        </p>
+                    </div>
+                    
+                    <!-- Results Summary (shown when done) -->
+                    <div class="alert alert-success" role="alert" 
+                         invisible="state != 'done'">
+                        <h4 class="alert-heading">Export Completed!</h4>
+                        <div class="row">
+                            <div class="col-4 text-center">
+                                <strong class="text-success h3">
+                                    <field name="result_success_count"/>
+                                </strong>
+                                <p class="mb-0">Successful</p>
+                            </div>
+                            <div class="col-4 text-center">
+                                <strong class="text-danger h3">
+                                    <field name="result_error_count"/>
+                                </strong>
+                                <p class="mb-0">Failed</p>
+                            </div>
+                            <div class="col-4 text-center">
+                                <strong class="text-muted h3">
+                                    <field name="result_skip_count"/>
+                                </strong>
+                                <p class="mb-0">Skipped</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error Alert -->
+                    <div class="alert alert-danger" role="alert" 
+                         invisible="state != 'error'">
+                        <strong>Error:</strong>
+                        <field name="progress_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Draft State: Configuration -->
+                    <group invisible="state != 'draft'">
+                        <group string="Amazon Account">
+                            <field name="account_id" options="{'no_create': True}"/>
+                            <field name="marketplace_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Export Options">
+                            <field name="export_mode"/>
+                            <field name="sku_mode"/>
+                            <field name="fulfillment_channel"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="state != 'draft'">
+                        <group string="Update Options">
+                            <field name="update_price"/>
+                            <field name="update_inventory"/>
+                            <field name="update_description"/>
+                            <field name="update_images"/>
+                        </group>
+                        <group string="Pricing">
+                            <field name="price_mode"/>
+                            <field name="pricelist_id" 
+                                   invisible="price_mode != 'pricelist'"
+                                   required="price_mode == 'pricelist'"/>
+                            <field name="price_margin"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Product Selection -->
+                    <notebook invisible="state not in ('draft', 'confirm')">
+                        <page string="Products" name="products">
+                            <field name="product_ids" widget="many2many"
+                                   options="{'no_create': True}">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="default_code"/>
+                                    <field name="list_price"/>
+                                    <field name="qty_available"/>
+                                </list>
+                            </field>
+                            <div class="text-muted mt-2">
+                                <strong><field name="product_count"/></strong> products selected
+                            </div>
+                        </page>
+                    </notebook>
+                    
+                    <!-- Confirm State: Review -->
+                    <group invisible="state != 'confirm'">
+                        <div class="alert alert-info">
+                            <strong>Ready to export</strong>
+                            <ul class="mb-0">
+                                <li><field name="product_count" readonly="1"/> products</li>
+                                <li><field name="marketplace_ids" widget="many2many_tags" readonly="1"/> marketplaces</li>
+                                <li>Mode: <field name="export_mode" readonly="1"/></li>
+                            </ul>
+                        </div>
+                    </group>
+                    
+                    <!-- Results Log -->
+                    <group invisible="state not in ('done', 'error')" string="Export Log">
+                        <field name="result_log" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Next" type="object" name="action_confirm"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Back" type="object" name="action_back"
+                            class="btn-secondary" invisible="state not in ('confirm',)"/>
+                    <button string="Export" type="object" name="action_export"
+                            class="btn-primary" invisible="state != 'confirm'"/>
+                    <button string="Retry Failed" type="object" name="action_retry_failed"
+                            class="btn-warning" 
+                            invisible="state != 'done' or result_error_count == 0"/>
+                    <button string="View Results" type="object" name="action_view_results"
+                            class="btn-secondary" invisible="state != 'done'"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="amazon_product_export_wizard_line_list" model="ir.ui.view">
+        <field name="name">amazon.product.export.wizard.line.list</field>
+        <field name="model">amazon.product.export.wizard.line</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="product_id"/>
+                <field name="marketplace_id"/>
+                <field name="sku"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'success'"
+                       decoration-danger="state == 'error'"
+                       decoration-info="state == 'pending'"
+                       decoration-muted="state == 'skipped'"/>
+                <field name="message"/>
+            </list>
+        </field>
+    </record>
+    
+    <record id="action_amazon_product_export_wizard" model="ir.actions.act_window">
+        <field name="name">Export to Amazon</field>
+        <field name="res_model">amazon.product.export.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- PRODUCT IMPORT WIZARD                                               -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_product_import_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.product.import.wizard.form</field>
+        <field name="model">amazon.product.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Products from Amazon">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,preview,importing,done"/>
+                </header>
+                <sheet>
+                    <!-- Progress -->
+                    <div invisible="state not in ('fetching', 'importing')">
+                        <field name="progress_percent" widget="progressbar"/>
+                        <p class="text-muted text-center">
+                            <field name="progress_message" readonly="1"/>
+                        </p>
+                    </div>
+                    
+                    <!-- Results -->
+                    <div class="alert alert-success" invisible="state != 'done'">
+                        <h4>Import Completed!</h4>
+                        <div class="row">
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_created"/></strong>
+                                <p>Created</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_updated"/></strong>
+                                <p>Updated</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_linked"/></strong>
+                                <p>Linked</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3 text-danger"><field name="result_errors"/></strong>
+                                <p>Errors</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error -->
+                    <div class="alert alert-danger" invisible="state != 'error'">
+                        <field name="progress_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Configuration -->
+                    <group invisible="state != 'draft'">
+                        <group string="Source">
+                            <field name="account_id"/>
+                            <field name="marketplace_ids" widget="many2many_tags"/>
+                            <field name="import_mode"/>
+                            <field name="specific_skus" 
+                                   invisible="import_mode != 'specific'"
+                                   placeholder="Enter SKUs, one per line"/>
+                        </group>
+                        <group string="Product Options">
+                            <field name="create_products"/>
+                            <field name="update_products"/>
+                            <field name="match_by"/>
+                            <field name="product_category_id"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="state != 'draft'">
+                        <group string="Data Options">
+                            <field name="import_prices"/>
+                            <field name="price_markup" invisible="not import_prices"/>
+                            <field name="import_images"/>
+                        </group>
+                        <group string="Inventory">
+                            <field name="import_inventory"/>
+                            <field name="warehouse_id" invisible="not import_inventory"
+                                   required="import_inventory"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Preview -->
+                    <group invisible="state != 'preview'">
+                        <div class="alert alert-info">
+                            Found <strong><field name="preview_total" readonly="1"/></strong> listings:
+                            <span class="badge bg-success"><field name="preview_new" readonly="1"/> new</span>
+                            <span class="badge bg-info"><field name="preview_existing" readonly="1"/> existing</span>
+                        </div>
+                    </group>
+                    
+                    <notebook invisible="state not in ('preview', 'done')">
+                        <page string="Listings" name="listings">
+                            <field name="preview_line_ids">
+                                <list editable="bottom">
+                                    <field name="selected" widget="boolean_toggle"/>
+                                    <field name="sku"/>
+                                    <field name="asin"/>
+                                    <field name="title"/>
+                                    <field name="marketplace_id"/>
+                                    <field name="price"/>
+                                    <field name="fulfillment"/>
+                                    <field name="product_id"/>
+                                    <field name="action" widget="badge"
+                                           decoration-success="action == 'create'"
+                                           decoration-info="action in ('update', 'link')"
+                                           decoration-muted="action == 'skip'"/>
+                                    <field name="state" widget="badge" invisible="state == 'pending'"
+                                           decoration-success="state == 'done'"
+                                           decoration-danger="state == 'error'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    
+                    <!-- Log -->
+                    <group invisible="state != 'done'" string="Import Log">
+                        <field name="result_log" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Fetch Listings" type="object" name="action_fetch_listings"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Select All" type="object" name="action_select_all"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Select New Only" type="object" name="action_select_new_only"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Import Selected" type="object" name="action_import"
+                            class="btn-primary" invisible="state != 'preview'"/>
+                    <button string="Back" type="object" name="action_back"
+                            class="btn-secondary" invisible="state not in ('preview',)"/>
+                    <button string="View Products" type="object" name="action_view_products"
+                            class="btn-secondary" invisible="state != 'done'"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="action_amazon_product_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import from Amazon</field>
+        <field name="res_model">amazon.product.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- FBA SHIPMENT WIZARD                                                 -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_fba_shipment_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.wizard.form</field>
+        <field name="model">amazon.fba.shipment.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create FBA Inbound Shipment">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,plan,confirm,labels,done"/>
+                </header>
+                <sheet>
+                    <!-- Status Message -->
+                    <div class="alert alert-info" invisible="not status_message">
+                        <field name="status_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Error -->
+                    <div class="alert alert-danger" invisible="state != 'error'">
+                        <strong>Error:</strong>
+                        <field name="error_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Step 1: Select Products -->
+                    <group invisible="state != 'draft'">
+                        <group string="Amazon Account">
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                        </group>
+                        <group string="Shipping Details">
+                            <field name="shipment_name"/>
+                            <field name="warehouse_id"/>
+                            <field name="ship_from_address_id"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="state != 'draft'">
+                        <group string="Options">
+                            <field name="label_prep_preference"/>
+                            <field name="packing_type"/>
+                        </group>
+                    </group>
+                    
+                    <notebook invisible="state != 'draft'">
+                        <page string="Products" name="products">
+                            <field name="line_ids">
+                                <list editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="quantity"/>
+                                    <field name="seller_sku" readonly="1"/>
+                                    <field name="asin" readonly="1"/>
+                                    <field name="available_qty" readonly="1"/>
+                                </list>
+                            </field>
+                            <div class="mt-2">
+                                <strong><field name="line_count" readonly="1"/></strong> products,
+                                <strong><field name="total_quantity" readonly="1"/></strong> total units
+                            </div>
+                        </page>
+                    </notebook>
+                    
+                    <!-- Step 2: Review Plan -->
+                    <group invisible="state != 'plan'" string="Shipment Plans from Amazon">
+                        <p class="text-muted">
+                            Amazon may split your shipment into multiple destinations.
+                            Select the plan to create.
+                        </p>
+                        <field name="shipment_plan_ids" nolabel="1">
+                            <list>
+                                <field name="destination_fc"/>
+                                <field name="item_count"/>
+                                <field name="label_prep_type"/>
+                            </list>
+                        </field>
+                        <field name="selected_plan_id" widget="selection"
+                               domain="[('wizard_id', '=', id)]"/>
+                    </group>
+                    
+                    <!-- Step 3: Confirm -->
+                    <group invisible="state != 'confirm'">
+                        <div class="alert alert-success">
+                            <h4>Shipment Created!</h4>
+                            <p>
+                                Your FBA inbound shipment has been created with Amazon.
+                                Next, print the shipping labels.
+                            </p>
+                            <p class="mb-0">
+                                <strong>Shipment ID:</strong>
+                                <field name="created_shipment_id" readonly="1"/>
+                            </p>
+                        </div>
+                    </group>
+                    
+                    <!-- Step 4: Labels -->
+                    <group invisible="state != 'labels'">
+                        <div class="alert alert-info">
+                            <h4>Labels Ready!</h4>
+                            <p>
+                                Print these labels and apply them to your boxes before shipping.
+                            </p>
+                        </div>
+                        <field name="label_data" filename="label_filename" invisible="1"/>
+                        <field name="label_filename" invisible="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Create Plan" type="object" name="action_create_plan"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Confirm Shipment" type="object" name="action_confirm_shipment"
+                            class="btn-primary" invisible="state != 'plan'"/>
+                    <button string="Get Labels" type="object" name="action_get_labels"
+                            class="btn-primary" invisible="state != 'confirm'"/>
+                    <button string="Print Labels" type="object" name="action_print_labels"
+                            class="btn-primary" invisible="state != 'labels'"/>
+                    <button string="View Shipment" type="object" name="action_done"
+                            class="btn-success" invisible="state != 'labels'"/>
+                    <button string="Back" type="object" name="action_back"
+                            class="btn-secondary" 
+                            invisible="state not in ('plan', 'confirm')"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="action_amazon_fba_shipment_wizard" model="ir.actions.act_window">
+        <field name="name">Create FBA Shipment</field>
+        <field name="res_model">amazon.fba.shipment.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- SETTLEMENT IMPORT WIZARD                                            -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_settlement_import_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.settlement.import.wizard.form</field>
+        <field name="model">amazon.settlement.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Settlement Reports">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,preview,importing,done"/>
+                </header>
+                <sheet>
+                    <!-- Progress -->
+                    <div invisible="state not in ('fetching', 'importing')">
+                        <field name="progress_percent" widget="progressbar"/>
+                        <p class="text-muted text-center">
+                            <field name="progress_message" readonly="1"/>
+                        </p>
+                    </div>
+                    
+                    <!-- Results -->
+                    <div class="alert alert-success" invisible="state != 'done'">
+                        <h4>Import Completed!</h4>
+                        <div class="row">
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_count"/></strong>
+                                <p>Settlements</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_lines"/></strong>
+                                <p>Lines</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_reconciled"/></strong>
+                                <p>Reconciled</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3">
+                                    <field name="result_amount" widget="monetary"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </strong>
+                                <p>Total Amount</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error -->
+                    <div class="alert alert-danger" invisible="state != 'error'">
+                        <field name="progress_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Configuration -->
+                    <group invisible="state != 'draft'">
+                        <group string="Source">
+                            <field name="account_id"/>
+                            <field name="import_mode"/>
+                            <field name="settlement_id" 
+                                   invisible="import_mode != 'specific'"
+                                   required="import_mode == 'specific'"/>
+                        </group>
+                        <group string="Date Range" invisible="import_mode == 'specific'">
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="state != 'draft'">
+                        <group string="Reconciliation">
+                            <field name="auto_reconcile"/>
+                            <field name="reconcile_payments"/>
+                            <field name="bank_journal_id" 
+                                   invisible="not reconcile_payments"
+                                   required="reconcile_payments"/>
+                        </group>
+                        <group string="Fee Processing">
+                            <field name="create_fee_entries"/>
+                            <field name="fee_account_id" 
+                                   invisible="not create_fee_entries"/>
+                            <field name="fee_product_id" 
+                                   invisible="not create_fee_entries"/>
+                        </group>
+                    </group>
+                    
+                    <field name="currency_id" invisible="1"/>
+                    
+                    <!-- Preview -->
+                    <group invisible="state != 'preview'">
+                        <div class="alert alert-info">
+                            Found <strong><field name="preview_count" readonly="1"/></strong> settlements
+                            totaling <strong><field name="preview_total_amount" widget="monetary" 
+                                                    options="{'currency_field': 'currency_id'}"/></strong>
+                        </div>
+                    </group>
+                    
+                    <notebook invisible="state not in ('preview', 'done')">
+                        <page string="Settlements" name="settlements">
+                            <field name="preview_line_ids">
+                                <list editable="bottom">
+                                    <field name="selected" widget="boolean_toggle"/>
+                                    <field name="settlement_id"/>
+                                    <field name="start_date"/>
+                                    <field name="end_date"/>
+                                    <field name="total_amount"/>
+                                    <field name="currency"/>
+                                    <field name="deposit_date"/>
+                                    <field name="status" widget="badge"
+                                           decoration-success="status == 'new'"
+                                           decoration-info="status == 'imported'"
+                                           decoration-danger="status == 'error'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    
+                    <!-- Log -->
+                    <group invisible="state != 'done'" string="Import Log">
+                        <field name="result_log" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Fetch Settlements" type="object" name="action_fetch_settlements"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Import Selected" type="object" name="action_import"
+                            class="btn-primary" invisible="state != 'preview'"/>
+                    <button string="Back" type="object" name="action_back"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="View Settlements" type="object" name="action_view_settlements"
+                            class="btn-secondary" invisible="state != 'done'"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="action_amazon_settlement_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import Settlements</field>
+        <field name="res_model">amazon.settlement.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- ORDER SYNC WIZARD                                                   -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_order_sync_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.order.sync.wizard.form</field>
+        <field name="model">amazon.order.sync.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Sync Amazon Orders">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,preview,importing,done"/>
+                </header>
+                <sheet>
+                    <!-- Progress -->
+                    <div invisible="state not in ('syncing', 'importing')">
+                        <field name="progress_percent" widget="progressbar"/>
+                        <p class="text-muted text-center">
+                            <field name="progress_message" readonly="1"/>
+                        </p>
+                    </div>
+                    
+                    <!-- Results -->
+                    <div class="alert alert-success" invisible="state != 'done'">
+                        <h4>Sync Completed!</h4>
+                        <div class="row">
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_imported"/></strong>
+                                <p>Imported</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_updated"/></strong>
+                                <p>Updated</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3"><field name="result_sale_orders"/></strong>
+                                <p>Sale Orders</p>
+                            </div>
+                            <div class="col-3 text-center">
+                                <strong class="h3 text-danger"><field name="result_errors"/></strong>
+                                <p>Errors</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error -->
+                    <div class="alert alert-danger" invisible="state != 'error'">
+                        <field name="progress_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Configuration -->
+                    <group invisible="state != 'draft'">
+                        <group string="Source">
+                            <field name="account_id"/>
+                            <field name="marketplace_ids" widget="many2many_tags"/>
+                        </group>
+                        <group string="Date Range">
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="state != 'draft'">
+                        <group string="Filters">
+                            <field name="order_status"/>
+                            <field name="fulfillment_channel"/>
+                            <field name="order_type"/>
+                            <field name="sync_mode"/>
+                        </group>
+                        <group string="Sale Order Options">
+                            <field name="create_sale_orders"/>
+                            <field name="auto_confirm_orders" 
+                                   invisible="not create_sale_orders"/>
+                            <field name="team_id" invisible="not create_sale_orders"/>
+                            <field name="create_customers" 
+                                   invisible="not create_sale_orders"/>
+                            <field name="default_customer_id" 
+                                   invisible="create_customers or not create_sale_orders"/>
+                        </group>
+                    </group>
+                    
+                    <field name="currency_id" invisible="1"/>
+                    
+                    <!-- Preview -->
+                    <group invisible="state != 'preview'">
+                        <div class="alert alert-info">
+                            Found <strong><field name="preview_count" readonly="1"/></strong> orders
+                            (<span class="badge bg-success"><field name="preview_new" readonly="1"/> new</span>,
+                            <span class="badge bg-info"><field name="preview_existing" readonly="1"/> existing</span>)
+                            totaling <strong><field name="preview_total" widget="monetary"
+                                                    options="{'currency_field': 'currency_id'}"/></strong>
+                        </div>
+                    </group>
+                    
+                    <notebook invisible="state not in ('preview', 'done')">
+                        <page string="Orders" name="orders">
+                            <field name="preview_line_ids">
+                                <list editable="bottom">
+                                    <field name="selected" widget="boolean_toggle"/>
+                                    <field name="amazon_order_id"/>
+                                    <field name="purchase_date"/>
+                                    <field name="order_status"/>
+                                    <field name="fulfillment_channel"/>
+                                    <field name="marketplace_name"/>
+                                    <field name="buyer_name"/>
+                                    <field name="total_amount"/>
+                                    <field name="item_count"/>
+                                    <field name="status" widget="badge"
+                                           decoration-success="status == 'new'"
+                                           decoration-info="status == 'existing'"/>
+                                    <field name="sync_status" widget="badge" 
+                                           invisible="sync_status == 'pending'"
+                                           decoration-success="sync_status == 'success'"
+                                           decoration-danger="sync_status == 'error'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    
+                    <!-- Log -->
+                    <group invisible="state != 'done'" string="Sync Log">
+                        <field name="result_log" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Fetch Orders" type="object" name="action_fetch_orders"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Select All" type="object" name="action_select_all"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Select New Only" type="object" name="action_select_new"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Sync Selected" type="object" name="action_sync"
+                            class="btn-primary" invisible="state != 'preview'"/>
+                    <button string="Back" type="object" name="action_back"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="View Orders" type="object" name="action_view_orders"
+                            class="btn-secondary" invisible="state != 'done'"/>
+                    <button string="View Sale Orders" type="object" name="action_view_sale_orders"
+                            class="btn-secondary" 
+                            invisible="state != 'done' or result_sale_orders == 0"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="action_amazon_order_sync_wizard" model="ir.actions.act_window">
+        <field name="name">Sync Orders</field>
+        <field name="res_model">amazon.order.sync.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- INVENTORY SYNC WIZARD                                               -->
+    <!-- =================================================================== -->
+    
+    <record id="amazon_inventory_sync_wizard_form" model="ir.ui.view">
+        <field name="name">amazon.inventory.sync.wizard.form</field>
+        <field name="model">amazon.inventory.sync.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Sync Inventory to Amazon">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,preview,syncing,done"/>
+                </header>
+                <sheet>
+                    <!-- Progress -->
+                    <div invisible="state != 'syncing'">
+                        <field name="progress_percent" widget="progressbar"/>
+                        <p class="text-muted text-center">
+                            <field name="progress_message" readonly="1"/>
+                        </p>
+                    </div>
+                    
+                    <!-- Results -->
+                    <div class="alert alert-success" invisible="state != 'done'">
+                        <h4>Sync Completed!</h4>
+                        <div class="row">
+                            <div class="col-4 text-center">
+                                <strong class="h3 text-success"><field name="result_synced"/></strong>
+                                <p>Synced</p>
+                            </div>
+                            <div class="col-4 text-center">
+                                <strong class="h3 text-muted"><field name="result_unchanged"/></strong>
+                                <p>Unchanged</p>
+                            </div>
+                            <div class="col-4 text-center">
+                                <strong class="h3 text-danger"><field name="result_errors"/></strong>
+                                <p>Errors</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error -->
+                    <div class="alert alert-danger" invisible="state != 'error'">
+                        <field name="progress_message" readonly="1"/>
+                    </div>
+                    
+                    <!-- Configuration -->
+                    <group invisible="state != 'draft'">
+                        <group string="Amazon Account">
+                            <field name="account_id"/>
+                            <field name="marketplace_ids" widget="many2many_tags"/>
+                        </group>
+                        <group string="Sync Options">
+                            <field name="sync_mode"/>
+                            <field name="product_ids" widget="many2many_tags"
+                                   invisible="sync_mode != 'selected'"
+                                   required="sync_mode == 'selected'"/>
+                            <field name="fulfillment_channel"/>
+                        </group>
+                    </group>
+                    
+                    <group invisible="state != 'draft'">
+                        <group string="Quantity Settings">
+                            <field name="warehouse_ids" widget="many2many_tags"/>
+                            <field name="quantity_type"/>
+                            <field name="use_safety_stock"/>
+                            <field name="safety_stock_percentage" 
+                                   invisible="not use_safety_stock"/>
+                        </group>
+                        <group string="Limits">
+                            <field name="minimum_quantity"/>
+                            <field name="maximum_quantity"/>
+                            <field name="handling_time"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Preview -->
+                    <group invisible="state != 'preview'">
+                        <div class="alert alert-info">
+                            <strong><field name="line_count" readonly="1"/></strong> products,
+                            <strong><field name="line_total_qty" readonly="1"/></strong> total units to sync
+                        </div>
+                    </group>
+                    
+                    <notebook invisible="state not in ('preview', 'done')">
+                        <page string="Products" name="products">
+                            <field name="line_ids">
+                                <list editable="bottom" decoration-warning="needs_sync"
+                                      decoration-muted="not needs_sync">
+                                    <field name="selected" widget="boolean_toggle"/>
+                                    <field name="product_id"/>
+                                    <field name="seller_sku"/>
+                                    <field name="marketplace_id"/>
+                                    <field name="quantity_odoo"/>
+                                    <field name="quantity_amazon"/>
+                                    <field name="quantity_to_sync"/>
+                                    <field name="quantity_diff"/>
+                                    <field name="needs_sync" invisible="1"/>
+                                    <field name="sync_status" widget="badge"
+                                           invisible="sync_status == 'pending'"
+                                           decoration-success="sync_status == 'success'"
+                                           decoration-danger="sync_status == 'error'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    
+                    <!-- Log -->
+                    <group invisible="state != 'done'" string="Sync Log">
+                        <field name="result_log" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Preview" type="object" name="action_preview"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="Select All" type="object" name="action_select_all"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Select Changed" type="object" name="action_select_changed"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Refresh" type="object" name="action_refresh"
+                            class="btn-secondary" invisible="state != 'preview'"/>
+                    <button string="Sync to Amazon" type="object" name="action_sync"
+                            class="btn-primary" invisible="state != 'preview'"/>
+                    <button string="Back" type="object" name="action_back"
+                            class="btn-secondary" invisible="state not in ('preview',)"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <record id="action_amazon_inventory_sync_wizard" model="ir.actions.act_window">
+        <field name="name">Sync Inventory</field>
+        <field name="res_model">amazon.inventory.sync.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+    <!-- =================================================================== -->
+    <!-- MENU ITEMS (for easier access from menus)                           -->
+    <!-- =================================================================== -->
+    
+    <!-- Server Actions for context menu on products -->
+    <record id="action_product_export_to_amazon" model="ir.actions.server">
+        <field name="name">Export to Amazon</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+action = {
+    'name': 'Export to Amazon',
+    'type': 'ir.actions.act_window',
+    'res_model': 'amazon.product.export.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_product_ids': [(6, 0, records.ids)]},
+}
+        </field>
+    </record>
+    
+    <record id="action_product_sync_inventory_to_amazon" model="ir.actions.server">
+        <field name="name">Sync Inventory to Amazon</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+action = {
+    'name': 'Sync Inventory to Amazon',
+    'type': 'ir.actions.act_window',
+    'res_model': 'amazon.inventory.sync.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {
+        'default_sync_mode': 'selected',
+        'default_product_ids': [(6, 0, records.ids)],
+    },
+}
+        </field>
+    </record>
+    
+    <record id="action_product_create_fba_shipment" model="ir.actions.server">
+        <field name="name">Create FBA Shipment</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+lines = [(0, 0, {'product_id': rec.id, 'quantity': 1}) for rec in records]
+action = {
+    'name': 'Create FBA Shipment',
+    'type': 'ir.actions.act_window',
+    'res_model': 'amazon.fba.shipment.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_line_ids': lines},
+}
+        </field>
+    </record>
+</odoo>

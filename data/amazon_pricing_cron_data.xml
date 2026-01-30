@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- ============================================================ -->
+        <!-- PRICING INTELLIGENCE CRON JOBS -->
+        <!-- ============================================================ -->
+        
+        <!-- Fetch Competitor Prices (every 2 hours) -->
+        <record id="ir_cron_fetch_competitor_prices" model="ir.cron">
+            <field name="name">Amazon: Fetch Competitor Prices</field>
+            <field name="model_id" ref="model_amazon_competitor_price"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_fetch_competitor_prices()</field>
+            <field name="interval_number">2</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">10</field>
+        </record>
+        
+        <!-- Generate Pricing Recommendations (every 4 hours) -->
+        <record id="ir_cron_generate_pricing_recommendations" model="ir.cron">
+            <field name="name">Amazon: Generate Pricing Recommendations</field>
+            <field name="model_id" ref="model_amazon_pricing_recommendation"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_generate_recommendations()</field>
+            <field name="interval_number">4</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">15</field>
+        </record>
+        
+        <!-- Auto-Apply High Confidence Recommendations (every 6 hours) -->
+        <record id="ir_cron_auto_apply_recommendations" model="ir.cron">
+            <field name="name">Amazon: Auto-Apply Pricing Recommendations</field>
+            <field name="model_id" ref="model_amazon_pricing_recommendation"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_auto_apply_recommendations()</field>
+            <field name="interval_number">6</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active">False</field>  <!-- Disabled by default - enable manually -->
+            <field name="doall">False</field>
+            <field name="priority">20</field>
+        </record>
+        
+        <!-- Expire Old Recommendations (daily) -->
+        <record id="ir_cron_expire_old_recommendations" model="ir.cron">
+            <field name="name">Amazon: Expire Old Pricing Recommendations</field>
+            <field name="model_id" ref="model_amazon_pricing_recommendation"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_expire_old_recommendations()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">50</field>
+        </record>
+        
+        <!-- Cleanup Old Competitor Prices (weekly) -->
+        <record id="ir_cron_cleanup_competitor_prices" model="ir.cron">
+            <field name="name">Amazon: Cleanup Old Competitor Prices</field>
+            <field name="model_id" ref="model_amazon_competitor_price"/>
+            <field name="state">code</field>
+            <field name="code">model.cleanup_old_records(days=90)</field>
+            <field name="interval_number">7</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">50</field>
+        </record>
+        
+    </data>
+</odoo>

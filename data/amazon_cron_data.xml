@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- ============================================================ -->
+        <!-- FBA INVENTORY SYNC CRON JOBS -->
+        <!-- ============================================================ -->
+        
+        <!-- Sync FBA Inventory from Amazon (every 4 hours) -->
+        <record id="ir_cron_sync_fba_inventory" model="ir.cron">
+            <field name="name">Amazon: Sync FBA Inventory</field>
+            <field name="model_id" ref="model_amazon_inventory_sync"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_sync_fba_inventory()</field>
+            <field name="interval_number">4</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">10</field>
+        </record>
+        
+        <!-- Sync FBM Inventory to Amazon (every 2 hours) -->
+        <record id="ir_cron_sync_fbm_inventory" model="ir.cron">
+            <field name="name">Amazon: Sync FBM Inventory</field>
+            <field name="model_id" ref="model_amazon_inventory_sync"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_sync_fbm_inventory()</field>
+            <field name="interval_number">2</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">10</field>
+        </record>
+        
+        <!-- ============================================================ -->
+        <!-- FBA SHIPMENT CRON JOBS -->
+        <!-- ============================================================ -->
+        
+        <!-- Sync FBA Shipment Status (every 6 hours) -->
+        <record id="ir_cron_sync_fba_shipments" model="ir.cron">
+            <field name="name">Amazon: Sync FBA Shipment Status</field>
+            <field name="model_id" ref="model_amazon_fba_shipment"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_sync_shipments()</field>
+            <field name="interval_number">6</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">15</field>
+        </record>
+        
+        <!-- Check FBA Shipment Alerts (daily) -->
+        <record id="ir_cron_check_fba_shipment_alerts" model="ir.cron">
+            <field name="name">Amazon: Check FBA Shipment Alerts</field>
+            <field name="model_id" ref="model_amazon_fba_shipment"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_check_shipment_alerts()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">20</field>
+        </record>
+        
+        <!-- ============================================================ -->
+        <!-- PREDICTIVE INVENTORY INTELLIGENCE CRON JOBS -->
+        <!-- ============================================================ -->
+        
+        <!-- Collect Demand History (daily at 2 AM) -->
+        <record id="ir_cron_collect_demand_history" model="ir.cron">
+            <field name="name">Amazon: Collect Demand History</field>
+            <field name="model_id" ref="model_amazon_demand_history"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_collect_demand_history()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">5</field>
+            <field name="nextcall" eval="(DateTime.now().replace(hour=2, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+        </record>
+        
+        <!-- Update Inventory Forecasts (daily at 3 AM) -->
+        <record id="ir_cron_update_forecasts" model="ir.cron">
+            <field name="name">Amazon: Update Inventory Forecasts</field>
+            <field name="model_id" ref="model_amazon_inventory_forecast"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_update_forecasts()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">6</field>
+            <field name="nextcall" eval="(DateTime.now().replace(hour=3, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+        </record>
+        
+        <!-- Create Missing Forecast Records (daily at 3:30 AM) -->
+        <record id="ir_cron_create_missing_forecasts" model="ir.cron">
+            <field name="name">Amazon: Create Missing Forecast Records</field>
+            <field name="model_id" ref="model_amazon_inventory_forecast"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_create_missing_forecasts()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">7</field>
+            <field name="nextcall" eval="(DateTime.now().replace(hour=3, minute=30, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+        </record>
+        
+        <!-- Generate Restock Suggestions (daily at 6 AM) -->
+        <record id="ir_cron_generate_restock_suggestions" model="ir.cron">
+            <field name="name">Amazon: Generate Restock Suggestions</field>
+            <field name="model_id" ref="model_amazon_restock_suggestion"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_generate_suggestions()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">8</field>
+            <field name="nextcall" eval="(DateTime.now().replace(hour=6, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+        </record>
+        
+        <!-- Expire Old Suggestions (daily at 1 AM) -->
+        <record id="ir_cron_expire_suggestions" model="ir.cron">
+            <field name="name">Amazon: Expire Old Restock Suggestions</field>
+            <field name="model_id" ref="model_amazon_restock_suggestion"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_expire_old_suggestions()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">50</field>
+        </record>
+        
+        <!-- Send Weekly Restock Summary (weekly on Monday at 8 AM) -->
+        <record id="ir_cron_weekly_restock_summary" model="ir.cron">
+            <field name="name">Amazon: Weekly Restock Summary Email</field>
+            <field name="model_id" ref="model_amazon_restock_suggestion"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_send_weekly_summary()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">weeks</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">30</field>
+        </record>
+        
+        <!-- ============================================================ -->
+        <!-- MAINTENANCE CRON JOBS -->
+        <!-- ============================================================ -->
+        
+        <!-- Cleanup old inventory sync records (weekly) -->
+        <record id="ir_cron_cleanup_inventory_syncs" model="ir.cron">
+            <field name="name">Amazon: Cleanup Old Inventory Sync Records</field>
+            <field name="model_id" ref="model_amazon_inventory_sync"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_cleanup_old_syncs()</field>
+            <field name="interval_number">7</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active">True</field>
+            <field name="doall">False</field>
+            <field name="priority">50</field>
+        </record>
+        
+    </data>
+    
+    <!-- ============================================================ -->
+    <!-- SEQUENCES -->
+    <!-- ============================================================ -->
+    
+    <data noupdate="1">
+        
+        <!-- FBA Shipment Sequence -->
+        <record id="sequence_amazon_fba_shipment" model="ir.sequence">
+            <field name="name">Amazon FBA Shipment</field>
+            <field name="code">amazon.fba.shipment</field>
+            <field name="prefix">FBA/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        
+        <!-- Inventory Sync Sequence -->
+        <record id="sequence_amazon_inventory_sync" model="ir.sequence">
+            <field name="name">Amazon Inventory Sync</field>
+            <field name="code">amazon.inventory.sync</field>
+            <field name="prefix">SYNC/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        
+    </data>
+    
+    <!-- ============================================================ -->
+    <!-- FBA PREP INSTRUCTIONS (Master Data) -->
+    <!-- ============================================================ -->
+    
+    <data noupdate="1">
+        
+        <record id="prep_instruction_polybagging" model="amazon.fba.prep.instruction">
+            <field name="name">Polybagging</field>
+            <field name="code">Polybagging</field>
+            <field name="description">Item must be placed in a poly bag with suffocation warning.</field>
+        </record>
+        
+        <record id="prep_instruction_bubble_wrap" model="amazon.fba.prep.instruction">
+            <field name="name">Bubble Wrap</field>
+            <field name="code">BubbleWrapping</field>
+            <field name="description">Item must be bubble wrapped for protection.</field>
+        </record>
+        
+        <record id="prep_instruction_taping" model="amazon.fba.prep.instruction">
+            <field name="name">Taping</field>
+            <field name="code">Taping</field>
+            <field name="description">Item packaging must be taped shut.</field>
+        </record>
+        
+        <record id="prep_instruction_black_shrink_wrap" model="amazon.fba.prep.instruction">
+            <field name="name">Black Shrink Wrap</field>
+            <field name="code">BlackShrinkWrapping</field>
+            <field name="description">Adult items must be shrink wrapped in black opaque material.</field>
+        </record>
+        
+        <record id="prep_instruction_labeling" model="amazon.fba.prep.instruction">
+            <field name="name">Labeling</field>
+            <field name="code">Labeling</field>
+            <field name="description">Item requires FNSKU barcode label.</field>
+        </record>
+        
+        <record id="prep_instruction_hang_garment" model="amazon.fba.prep.instruction">
+            <field name="name">Hang Garment</field>
+            <field name="code">HangGarment</field>
+            <field name="description">Garment should be on a hanger.</field>
+        </record>
+        
+        <record id="prep_instruction_set_creation" model="amazon.fba.prep.instruction">
+            <field name="name">Set Creation</field>
+            <field name="code">SetCreation</field>
+            <field name="description">Multiple items must be packaged together as a set.</field>
+        </record>
+        
+        <record id="prep_instruction_boxing" model="amazon.fba.prep.instruction">
+            <field name="name">Boxing</field>
+            <field name="code">Boxing</field>
+            <field name="description">Item must be placed in a box for protection.</field>
+        </record>
+        
+        <record id="prep_instruction_no_prep" model="amazon.fba.prep.instruction">
+            <field name="name">No Prep Required</field>
+            <field name="code">NoPrep</field>
+            <field name="description">No additional preparation required.</field>
+        </record>
+        
+    </data>
+</odoo>

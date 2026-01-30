@@ -1,0 +1,646 @@
+/**
+ * Amazon Smart Dashboard - Professional Styling
+ * Odoo 18 Amazon Connector
+ * 
+ * Color palette based on Amazon branding:
+ * - Primary Orange: #FF9900
+ * - Dark: #232F3E
+ * - Secondary: #37475A
+ * - Accent: #146EB4
+ */
+
+/* ============================================================================
+   CSS Variables
+   ============================================================================ */
+.o_amazon_dashboard {
+    --amazon-orange: #FF9900;
+    --amazon-orange-light: #FFB84D;
+    --amazon-orange-dark: #E88A00;
+    --amazon-dark: #232F3E;
+    --amazon-dark-light: #37475A;
+    --amazon-blue: #146EB4;
+    --amazon-success: #067D62;
+    --amazon-warning: #F5A623;
+    --amazon-danger: #D13212;
+    
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --card-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+    --card-radius: 12px;
+    --transition-speed: 0.2s;
+    
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+/* ============================================================================
+   Loading Overlay
+   ============================================================================ */
+.amazon-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.amazon-loading-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: var(--amazon-orange) !important;
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+.amazon-logo-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, var(--amazon-orange), var(--amazon-orange-dark));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+/* ============================================================================
+   KPI Cards
+   ============================================================================ */
+.amazon-kpi-card {
+    background: white;
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-shadow);
+    padding: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.amazon-kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+}
+
+.amazon-kpi-card.revenue::before { background: var(--amazon-success); }
+.amazon-kpi-card.orders::before { background: var(--amazon-blue); }
+.amazon-kpi-card.buybox::before { background: var(--amazon-orange); }
+.amazon-kpi-card.inventory::before { background: var(--amazon-dark); }
+
+.amazon-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover);
+}
+
+.kpi-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.amazon-kpi-card.revenue .kpi-icon {
+    background: rgba(6, 125, 98, 0.1);
+    color: var(--amazon-success);
+}
+
+.amazon-kpi-card.orders .kpi-icon {
+    background: rgba(20, 110, 180, 0.1);
+    color: var(--amazon-blue);
+}
+
+.amazon-kpi-card.buybox .kpi-icon {
+    background: rgba(255, 153, 0, 0.1);
+    color: var(--amazon-orange);
+}
+
+.amazon-kpi-card.inventory .kpi-icon {
+    background: rgba(35, 47, 62, 0.1);
+    color: var(--amazon-dark);
+}
+
+.kpi-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.kpi-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--amazon-dark);
+    line-height: 1.2;
+}
+
+.kpi-value small {
+    font-size: 0.6em;
+    color: #6c757d;
+}
+
+.kpi-subvalue {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.kpi-trend {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.kpi-trend i {
+    font-size: 0.75rem;
+}
+
+.kpi-trend.text-success { color: var(--amazon-success) !important; }
+.kpi-trend.text-danger { color: var(--amazon-danger) !important; }
+
+/* ============================================================================
+   Cards (General)
+   ============================================================================ */
+.amazon-card {
+    background: white;
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+.amazon-card .card-header {
+    background: white;
+    border-bottom: 1px solid #eee;
+    padding: 1rem 1.25rem;
+}
+
+.amazon-card .card-header h5 {
+    font-weight: 600;
+    color: var(--amazon-dark);
+}
+
+.amazon-card .card-body {
+    padding: 1.25rem;
+}
+
+/* ============================================================================
+   Charts
+   ============================================================================ */
+.chart-container {
+    position: relative;
+    width: 100%;
+}
+
+.chart-container canvas {
+    max-width: 100%;
+}
+
+/* ============================================================================
+   Product List
+   ============================================================================ */
+.amazon-product-list {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.product-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background var(--transition-speed);
+}
+
+.product-item:hover {
+    background: #f8f9fa;
+}
+
+.product-item:last-child {
+    border-bottom: none;
+}
+
+.product-rank {
+    width: 28px;
+    height: 28px;
+    background: var(--amazon-orange);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.product-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.product-name {
+    font-weight: 500;
+    color: var(--amazon-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.product-sku {
+    font-size: 0.75rem;
+}
+
+.product-stats {
+    flex-shrink: 0;
+}
+
+.product-revenue {
+    font-weight: 600;
+    color: var(--amazon-success);
+}
+
+.product-qty {
+    font-size: 0.8rem;
+}
+
+/* ============================================================================
+   Quick Stats
+   ============================================================================ */
+.quick-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.quick-stat:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: var(--amazon-dark);
+}
+
+/* ============================================================================
+   Alert List
+   ============================================================================ */
+.amazon-alert-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f0f0f0;
+    border-left: 4px solid transparent;
+    transition: background var(--transition-speed);
+}
+
+.alert-item:hover {
+    background: #f8f9fa;
+}
+
+.alert-item.severity-critical {
+    border-left-color: var(--amazon-danger);
+    background: rgba(209, 50, 18, 0.03);
+}
+
+.alert-item.severity-warning {
+    border-left-color: var(--amazon-warning);
+    background: rgba(245, 166, 35, 0.03);
+}
+
+.alert-item.severity-info {
+    border-left-color: var(--amazon-blue);
+    background: rgba(20, 110, 180, 0.03);
+}
+
+.alert-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.alert-item.severity-critical .alert-icon {
+    background: rgba(209, 50, 18, 0.1);
+    color: var(--amazon-danger);
+}
+
+.alert-item.severity-warning .alert-icon {
+    background: rgba(245, 166, 35, 0.1);
+    color: var(--amazon-warning);
+}
+
+.alert-item.severity-info .alert-icon {
+    background: rgba(20, 110, 180, 0.1);
+    color: var(--amazon-blue);
+}
+
+.alert-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.alert-title {
+    font-weight: 600;
+    color: var(--amazon-dark);
+    margin-bottom: 0.25rem;
+}
+
+.alert-message {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.alert-items {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.alert-items li {
+    margin-bottom: 0.125rem;
+}
+
+.alert-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* ============================================================================
+   Recommendation List
+   ============================================================================ */
+.amazon-recommendation-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.recommendation-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background var(--transition-speed);
+}
+
+.recommendation-item:hover {
+    background: #f8f9fa;
+}
+
+.recommendation-item:last-child {
+    border-bottom: none;
+}
+
+.rec-priority {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.rec-priority.priority-high {
+    background: rgba(209, 50, 18, 0.1);
+    color: var(--amazon-danger);
+}
+
+.rec-priority.priority-medium {
+    background: rgba(245, 166, 35, 0.1);
+    color: var(--amazon-warning);
+}
+
+.rec-priority.priority-low {
+    background: rgba(20, 110, 180, 0.1);
+    color: var(--amazon-blue);
+}
+
+.rec-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.rec-title {
+    font-weight: 600;
+    color: var(--amazon-dark);
+    margin-bottom: 0.25rem;
+}
+
+.rec-description {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.rec-impact {
+    font-size: 0.75rem;
+}
+
+.rec-action {
+    flex-shrink: 0;
+}
+
+/* ============================================================================
+   Quick Action Buttons
+   ============================================================================ */
+.quick-action-btn {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    transition: all var(--transition-speed);
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* ============================================================================
+   Custom Scrollbar
+   ============================================================================ */
+.amazon-alert-list::-webkit-scrollbar,
+.amazon-recommendation-list::-webkit-scrollbar,
+.amazon-product-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.amazon-alert-list::-webkit-scrollbar-track,
+.amazon-recommendation-list::-webkit-scrollbar-track,
+.amazon-product-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.amazon-alert-list::-webkit-scrollbar-thumb,
+.amazon-recommendation-list::-webkit-scrollbar-thumb,
+.amazon-product-list::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.amazon-alert-list::-webkit-scrollbar-thumb:hover,
+.amazon-recommendation-list::-webkit-scrollbar-thumb:hover,
+.amazon-product-list::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
+
+/* ============================================================================
+   Responsive Adjustments
+   ============================================================================ */
+@media (max-width: 768px) {
+    .amazon-kpi-card {
+        padding: 1rem;
+    }
+    
+    .kpi-value {
+        font-size: 1.5rem;
+    }
+    
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
+    }
+    
+    .quick-action-btn {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .alert-item,
+    .recommendation-item {
+        flex-wrap: wrap;
+    }
+    
+    .alert-actions,
+    .rec-action {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .o_amazon_dashboard .container-fluid {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    
+    .amazon-card .card-header,
+    .amazon-card .card-body {
+        padding: 0.875rem;
+    }
+}
+
+/* ============================================================================
+   Dark Mode Support (Odoo 18)
+   ============================================================================ */
+.o_dark_mode .o_amazon_dashboard {
+    background-color: #1a1a2e;
+}
+
+.o_dark_mode .amazon-kpi-card,
+.o_dark_mode .amazon-card {
+    background: #16213e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.o_dark_mode .amazon-card .card-header {
+    background: #16213e;
+    border-bottom-color: #2a2a4a;
+}
+
+.o_dark_mode .kpi-label,
+.o_dark_mode .stat-label,
+.o_dark_mode .alert-message,
+.o_dark_mode .rec-description {
+    color: #a0a0a0;
+}
+
+.o_dark_mode .kpi-value,
+.o_dark_mode .stat-value,
+.o_dark_mode .alert-title,
+.o_dark_mode .rec-title,
+.o_dark_mode .product-name,
+.o_dark_mode .amazon-card .card-header h5 {
+    color: #e0e0e0;
+}
+
+.o_dark_mode .product-item:hover,
+.o_dark_mode .alert-item:hover,
+.o_dark_mode .recommendation-item:hover {
+    background: #1f1f3a;
+}
+
+.o_dark_mode .product-item,
+.o_dark_mode .alert-item,
+.o_dark_mode .recommendation-item,
+.o_dark_mode .quick-stat {
+    border-bottom-color: #2a2a4a;
+}
+
+.o_dark_mode .amazon-loading-overlay {
+    background: rgba(26, 26, 46, 0.95);
+    color: #e0e0e0;
+}
+
+/* ============================================================================
+   Print Styles
+   ============================================================================ */
+@media print {
+    .o_amazon_dashboard {
+        background: white !important;
+    }
+    
+    .amazon-kpi-card,
+    .amazon-card {
+        box-shadow: none !important;
+        border: 1px solid #ddd;
+    }
+    
+    .quick-action-btn,
+    .alert-actions,
+    .rec-action {
+        display: none !important;
+    }
+}

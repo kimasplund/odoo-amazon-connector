@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Amazon Inventory Views                                        -->
+    <!-- ============================================================ -->
+
+    <!-- Tree View -->
+    <record id="amazon_inventory_view_tree" model="ir.ui.view">
+        <field name="name">amazon.inventory.tree</field>
+        <field name="model">amazon.inventory</field>
+        <field name="arch" type="xml">
+            <list string="Amazon Inventory" 
+                  decoration-danger="quantity_available == 0"
+                  decoration-warning="quantity_available > 0 and quantity_available &lt;= reorder_level"
+                  sample="1">
+                <field name="product_id" widget="many2one_avatar"/>
+                <field name="listing_id" optional="hide"/>
+                <field name="sku"/>
+                <field name="asin" optional="hide"/>
+                <field name="marketplace_id"/>
+                <field name="fulfillment_channel" widget="badge"/>
+                <field name="quantity_available"/>
+                <field name="quantity_reserved" optional="show"/>
+                <field name="quantity_inbound" optional="show"/>
+                <field name="quantity_unfulfillable" optional="show"/>
+                <field name="reorder_level" optional="hide"/>
+                <field name="last_sync_date"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="amazon_inventory_view_form" model="ir.ui.view">
+        <field name="name">amazon.inventory.form</field>
+        <field name="model">amazon.inventory</field>
+        <field name="arch" type="xml">
+            <form string="Amazon Inventory">
+                <header>
+                    <button name="action_sync_inventory" 
+                            string="Sync from Amazon" 
+                            type="object" 
+                            class="btn-primary"
+                            icon="fa-refresh"/>
+                    <button name="action_update_quantity" 
+                            string="Update Quantity" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="fulfillment_channel == 'FBA'"
+                            icon="fa-edit"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_listing" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-amazon"
+                                string="View Listing"/>
+                        <button name="action_view_history" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-history">
+                            <field name="history_count" widget="statinfo" string="History"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Out of Stock" bg_color="text-bg-danger" invisible="quantity_available > 0"/>
+                    <widget name="web_ribbon" title="Low Stock" bg_color="text-bg-warning" invisible="quantity_available == 0 or quantity_available > reorder_level"/>
+                    <div class="oe_title">
+                        <label for="product_id"/>
+                        <h1>
+                            <field name="product_id"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Identification">
+                            <field name="listing_id"/>
+                            <field name="sku"/>
+                            <field name="asin"/>
+                            <field name="fnsku" invisible="fulfillment_channel != 'FBA'"/>
+                        </group>
+                        <group string="Location">
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                            <field name="fulfillment_channel"/>
+                            <field name="fulfillment_center_id" invisible="fulfillment_channel != 'FBA'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Quantities" name="quantities">
+                            <group>
+                                <group string="Available Stock">
+                                    <field name="quantity_available"/>
+                                    <field name="quantity_reserved"/>
+                                    <field name="quantity_total"/>
+                                </group>
+                                <group string="FBA Quantities" invisible="fulfillment_channel != 'FBA'">
+                                    <field name="quantity_inbound"/>
+                                    <field name="quantity_inbound_working"/>
+                                    <field name="quantity_inbound_shipped"/>
+                                    <field name="quantity_inbound_receiving"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Problem Inventory" invisible="fulfillment_channel != 'FBA'">
+                                    <field name="quantity_unfulfillable"/>
+                                    <field name="quantity_researching"/>
+                                    <field name="quantity_pending_removal"/>
+                                </group>
+                                <group string="Settings">
+                                    <field name="reorder_level"/>
+                                    <field name="max_stock_level"/>
+                                    <field name="lead_time_days"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Supply Chain" name="supply_chain" invisible="fulfillment_channel != 'FBA'">
+                            <group>
+                                <group string="Inbound Summary">
+                                    <field name="quantity_inbound_working"/>
+                                    <field name="quantity_inbound_shipped"/>
+                                    <field name="quantity_inbound_receiving"/>
+                                </group>
+                                <group string="Inventory Age">
+                                    <field name="days_in_inventory"/>
+                                    <field name="inventory_age_0_90"/>
+                                    <field name="inventory_age_91_180"/>
+                                    <field name="inventory_age_181_270"/>
+                                    <field name="inventory_age_271_365"/>
+                                    <field name="inventory_age_365_plus"/>
+                                </group>
+                            </group>
+                            <group string="Replenishment">
+                                <group>
+                                    <field name="recommended_reorder_qty"/>
+                                    <field name="weeks_of_cover"/>
+                                    <field name="sellable_days_of_supply"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="History" name="history">
+                            <field name="history_ids" nolabel="1" readonly="1">
+                                <list default_order="date desc">
+                                    <field name="date"/>
+                                    <field name="operation"/>
+                                    <field name="quantity_before"/>
+                                    <field name="quantity_change"/>
+                                    <field name="quantity_after"/>
+                                    <field name="reference"/>
+                                    <field name="notes"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sync Info" name="sync">
+                            <group>
+                                <group>
+                                    <field name="last_sync_date"/>
+                                    <field name="sync_status"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="amazon_inventory_view_kanban" model="ir.ui.view">
+        <field name="name">amazon.inventory.kanban</field>
+        <field name="model">amazon.inventory</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" sample="1">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="quantity_available"/>
+                <field name="quantity_reserved"/>
+                <field name="quantity_inbound"/>
+                <field name="fulfillment_channel"/>
+                <field name="reorder_level"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <strong class="o_kanban_record_title text-truncate" style="max-width: 200px;">
+                                    <field name="product_id"/>
+                                </strong>
+                                <span class="badge" t-att-class="record.fulfillment_channel.raw_value == 'FBA' ? 'text-bg-info' : 'text-bg-secondary'">
+                                    <field name="fulfillment_channel"/>
+                                </span>
+                            </div>
+                            <div class="text-muted small mb-2">
+                                SKU: <field name="sku"/>
+                            </div>
+                            <div class="row">
+                                <div class="col-4 text-center">
+                                    <span class="fw-bold" t-att-class="record.quantity_available.raw_value == 0 ? 'text-danger' : (record.quantity_available.raw_value &lt;= record.reorder_level.raw_value ? 'text-warning' : 'text-success')">
+                                        <field name="quantity_available"/>
+                                    </span>
+                                    <div class="text-muted small">Available</div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <span class="fw-bold text-info"><field name="quantity_reserved"/></span>
+                                    <div class="text-muted small">Reserved</div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <span class="fw-bold text-primary"><field name="quantity_inbound"/></span>
+                                    <div class="text-muted small">Inbound</div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Graph View -->
+    <record id="amazon_inventory_view_graph" model="ir.ui.view">
+        <field name="name">amazon.inventory.graph</field>
+        <field name="model">amazon.inventory</field>
+        <field name="arch" type="xml">
+            <graph string="Inventory Levels" type="bar" sample="1">
+                <field name="marketplace_id"/>
+                <field name="quantity_available" type="measure"/>
+                <field name="quantity_reserved" type="measure"/>
+                <field name="quantity_inbound" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Pivot View -->
+    <record id="amazon_inventory_view_pivot" model="ir.ui.view">
+        <field name="name">amazon.inventory.pivot</field>
+        <field name="model">amazon.inventory</field>
+        <field name="arch" type="xml">
+            <pivot string="Inventory Analysis" sample="1">
+                <field name="marketplace_id" type="row"/>
+                <field name="fulfillment_channel" type="col"/>
+                <field name="quantity_available" type="measure"/>
+                <field name="quantity_reserved" type="measure"/>
+                <field name="quantity_inbound" type="measure"/>
+                <field name="quantity_unfulfillable" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="amazon_inventory_view_search" model="ir.ui.view">
+        <field name="name">amazon.inventory.search</field>
+        <field name="model">amazon.inventory</field>
+        <field name="arch" type="xml">
+            <search string="Search Inventory">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="asin"/>
+                <field name="marketplace_id"/>
+                <field name="account_id"/>
+                <separator/>
+                <filter name="filter_fba" string="FBA" domain="[('fulfillment_channel', '=', 'FBA')]"/>
+                <filter name="filter_fbm" string="FBM" domain="[('fulfillment_channel', '=', 'FBM')]"/>
+                <separator/>
+                <filter name="filter_out_of_stock" string="Out of Stock" domain="[('quantity_available', '=', 0)]"/>
+                <filter name="filter_low_stock" string="Low Stock" domain="[('quantity_available', '>', 0), ('quantity_available', '&lt;=', 'reorder_level')]"/>
+                <filter name="filter_in_stock" string="In Stock" domain="[('quantity_available', '>', 0)]"/>
+                <separator/>
+                <filter name="filter_unfulfillable" string="Has Unfulfillable" domain="[('quantity_unfulfillable', '>', 0)]"/>
+                <filter name="filter_has_inbound" string="Has Inbound" domain="[('quantity_inbound', '>', 0)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_marketplace" string="Marketplace" context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_fulfillment" string="Fulfillment" context="{'group_by': 'fulfillment_channel'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="amazon_inventory_action" model="ir.actions.act_window">
+        <field name="name">Amazon Inventory</field>
+        <field name="res_model">amazon.inventory</field>
+        <field name="view_mode">tree,kanban,form,graph,pivot</field>
+        <field name="search_view_id" ref="amazon_inventory_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No inventory data yet
+            </p>
+            <p>
+                Inventory levels will appear here once you sync them from Amazon.
+                Track stock across FBA and FBM fulfillment channels.
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: Low Stock Alert -->
+    <record id="amazon_inventory_action_low_stock" model="ir.actions.act_window">
+        <field name="name">Low Stock Alerts</field>
+        <field name="res_model">amazon.inventory</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="search_view_id" ref="amazon_inventory_view_search"/>
+        <field name="domain">[('quantity_available', '&lt;=', 5), ('quantity_available', '>', 0)]</field>
+    </record>
+
+    <!-- Action: Out of Stock -->
+    <record id="amazon_inventory_action_out_of_stock" model="ir.actions.act_window">
+        <field name="name">Out of Stock</field>
+        <field name="res_model">amazon.inventory</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="search_view_id" ref="amazon_inventory_view_search"/>
+        <field name="domain">[('quantity_available', '=', 0)]</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon Inventory History Views                                -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_inventory_history_view_tree" model="ir.ui.view">
+        <field name="name">amazon.inventory.history.tree</field>
+        <field name="model">amazon.inventory.history</field>
+        <field name="arch" type="xml">
+            <list string="Inventory History" default_order="date desc" create="0" edit="0">
+                <field name="date"/>
+                <field name="inventory_id"/>
+                <field name="product_id" optional="show"/>
+                <field name="sku"/>
+                <field name="operation"/>
+                <field name="quantity_before"/>
+                <field name="quantity_change" decoration-success="quantity_change > 0" decoration-danger="quantity_change &lt; 0"/>
+                <field name="quantity_after"/>
+                <field name="reference"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="amazon_inventory_history_view_search" model="ir.ui.view">
+        <field name="name">amazon.inventory.history.search</field>
+        <field name="model">amazon.inventory.history</field>
+        <field name="arch" type="xml">
+            <search string="Search Inventory History">
+                <field name="inventory_id"/>
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="operation"/>
+                <field name="reference"/>
+                <separator/>
+                <filter name="filter_today" string="Today" domain="[('date', '>=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
+                <filter name="filter_week" string="This Week" domain="[('date', '>=', (context_today() - datetime.timedelta(days=7)))]"/>
+                <separator/>
+                <filter name="filter_increase" string="Stock Increase" domain="[('quantity_change', '>', 0)]"/>
+                <filter name="filter_decrease" string="Stock Decrease" domain="[('quantity_change', '&lt;', 0)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_inventory" string="Inventory" context="{'group_by': 'inventory_id'}"/>
+                    <filter name="group_operation" string="Operation" context="{'group_by': 'operation'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by': 'date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="amazon_inventory_history_action" model="ir.actions.act_window">
+        <field name="name">Inventory History</field>
+        <field name="res_model">amazon.inventory.history</field>
+        <field name="view_mode">tree</field>
+        <field name="search_view_id" ref="amazon_inventory_history_view_search"/>
+        <field name="context">{'search_default_filter_week': 1}</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon Settlement Views                                       -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_settlement_view_tree" model="ir.ui.view">
+        <field name="name">amazon.settlement.tree</field>
+        <field name="model">amazon.settlement</field>
+        <field name="arch" type="xml">
+            <list string="Settlements" decoration-success="state == 'reconciled'" sample="1">
+                <field name="settlement_id"/>
+                <field name="account_id"/>
+                <field name="marketplace_id"/>
+                <field name="start_date"/>
+                <field name="end_date"/>
+                <field name="deposit_date"/>
+                <field name="total_amount" widget="monetary" sum="Total"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'pending'"
+                       decoration-success="state == 'reconciled'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="amazon_settlement_view_form" model="ir.ui.view">
+        <field name="name">amazon.settlement.form</field>
+        <field name="model">amazon.settlement</field>
+        <field name="arch" type="xml">
+            <form string="Settlement Report">
+                <header>
+                    <button name="action_import_details" 
+                            string="Import Details" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state != 'pending'"/>
+                    <button name="action_reconcile" 
+                            string="Reconcile" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state != 'pending'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,reconciled"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Settlement Info">
+                            <field name="settlement_id"/>
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                        </group>
+                        <group string="Period">
+                            <field name="start_date"/>
+                            <field name="end_date"/>
+                            <field name="deposit_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Summary" name="summary">
+                            <group>
+                                <group string="Income">
+                                    <field name="product_sales" widget="monetary"/>
+                                    <field name="product_sales_tax" widget="monetary"/>
+                                    <field name="shipping_credits" widget="monetary"/>
+                                    <field name="gift_wrap_credits" widget="monetary"/>
+                                    <field name="promotional_rebates" widget="monetary"/>
+                                    <field name="other_income" widget="monetary"/>
+                                    <field name="currency_id" invisible="1"/>
+                                </group>
+                                <group string="Fees &amp; Expenses">
+                                    <field name="selling_fees" widget="monetary"/>
+                                    <field name="fba_fees" widget="monetary"/>
+                                    <field name="other_transaction_fees" widget="monetary"/>
+                                    <field name="refund_total" widget="monetary"/>
+                                    <field name="other_expenses" widget="monetary"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Total">
+                                    <field name="total_amount" widget="monetary" class="oe_subtotal_footer_separator"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Transactions" name="transactions">
+                            <field name="transaction_ids" nolabel="1" readonly="1">
+                                <list>
+                                    <field name="posted_date"/>
+                                    <field name="transaction_type"/>
+                                    <field name="order_id"/>
+                                    <field name="sku"/>
+                                    <field name="description"/>
+                                    <field name="amount" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="amazon_settlement_view_search" model="ir.ui.view">
+        <field name="name">amazon.settlement.search</field>
+        <field name="model">amazon.settlement</field>
+        <field name="arch" type="xml">
+            <search string="Search Settlements">
+                <field name="settlement_id"/>
+                <field name="account_id"/>
+                <field name="marketplace_id"/>
+                <separator/>
+                <filter name="filter_pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                <filter name="filter_reconciled" string="Reconciled" domain="[('state', '=', 'reconciled')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_marketplace" string="Marketplace" context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'deposit_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="amazon_settlement_action" model="ir.actions.act_window">
+        <field name="name">Settlements</field>
+        <field name="res_model">amazon.settlement</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="amazon_settlement_view_search"/>
+    </record>
+
+</odoo>

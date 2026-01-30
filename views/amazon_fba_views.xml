@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Amazon FBA Shipment Views                                     -->
+    <!-- ============================================================ -->
+
+    <!-- Tree View -->
+    <record id="amazon_fba_shipment_view_tree" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.tree</field>
+        <field name="model">amazon.fba.shipment</field>
+        <field name="arch" type="xml">
+            <list string="FBA Shipments" 
+                  decoration-info="state == 'working'"
+                  decoration-warning="state == 'shipped'"
+                  decoration-success="state in ['receiving', 'closed']"
+                  decoration-muted="state == 'canceled'"
+                  sample="1">
+                <field name="name"/>
+                <field name="shipment_id"/>
+                <field name="account_id"/>
+                <field name="marketplace_id"/>
+                <field name="destination_fulfillment_center"/>
+                <field name="ship_from_address" optional="hide"/>
+                <field name="label_prep_type"/>
+                <field name="item_count"/>
+                <field name="shipped_date"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'working'"
+                       decoration-warning="state == 'shipped'"
+                       decoration-success="state in ['receiving', 'closed']"
+                       decoration-muted="state == 'canceled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="amazon_fba_shipment_view_form" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.form</field>
+        <field name="model">amazon.fba.shipment</field>
+        <field name="arch" type="xml">
+            <form string="FBA Shipment">
+                <header>
+                    <button name="action_create_inbound_plan" 
+                            string="Create Inbound Plan" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state != 'draft'"
+                            icon="fa-plus"/>
+                    <button name="action_request_labels" 
+                            string="Request Labels" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state not in ['working']"
+                            icon="fa-barcode"/>
+                    <button name="action_mark_shipped" 
+                            string="Mark as Shipped" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state != 'working'"
+                            icon="fa-truck"/>
+                    <button name="action_sync_status" 
+                            string="Sync Status" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state in ['draft', 'canceled', 'closed']"
+                            icon="fa-refresh"/>
+                    <button name="action_cancel" 
+                            string="Cancel" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state not in ['draft', 'working']"
+                            confirm="Are you sure you want to cancel this shipment?"
+                            icon="fa-times"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,working,shipped,receiving,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_items" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-cubes">
+                            <field name="item_count" widget="statinfo" string="Items"/>
+                        </button>
+                        <button name="action_print_labels" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-print"
+                                invisible="not has_labels"
+                                string="Print Labels"/>
+                        <button name="action_download_packing_list" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-file-pdf-o"
+                                string="Packing List"/>
+                    </div>
+                    <widget name="web_ribbon" title="Canceled" bg_color="text-bg-danger" invisible="state != 'canceled'"/>
+                    <div class="oe_title">
+                        <label for="name" string="Shipment Name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g., FBA-001"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Shipment Info">
+                            <field name="shipment_id" readonly="state != 'draft'"/>
+                            <field name="account_id" readonly="state != 'draft'"/>
+                            <field name="marketplace_id" readonly="state != 'draft'"/>
+                            <field name="shipment_type"/>
+                            <field name="destination_fulfillment_center"/>
+                        </group>
+                        <group string="Preparation">
+                            <field name="label_prep_type"/>
+                            <field name="are_cases_required"/>
+                            <field name="box_contents_source"/>
+                            <field name="intended_box_contents_source"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Items" name="items">
+                            <field name="item_ids" nolabel="1" readonly="state not in ['draft', 'working']">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id"/>
+                                    <field name="listing_id"/>
+                                    <field name="sku"/>
+                                    <field name="fnsku"/>
+                                    <field name="quantity_shipped"/>
+                                    <field name="quantity_received" readonly="1"/>
+                                    <field name="quantity_in_case" optional="show"/>
+                                    <field name="prep_instruction"/>
+                                    <field name="labeling_owner"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer">
+                                <field name="total_units" class="oe_subtotal_footer_separator"/>
+                            </group>
+                        </page>
+                        <page string="Ship From Address" name="ship_from">
+                            <group>
+                                <group string="Ship From">
+                                    <field name="ship_from_name"/>
+                                    <field name="ship_from_address_1"/>
+                                    <field name="ship_from_address_2"/>
+                                    <field name="ship_from_city"/>
+                                    <field name="ship_from_state"/>
+                                    <field name="ship_from_postal_code"/>
+                                    <field name="ship_from_country_id"/>
+                                </group>
+                                <group string="Contact">
+                                    <field name="ship_from_partner_id"/>
+                                    <field name="warehouse_id"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Boxes" name="boxes" invisible="not are_cases_required">
+                            <field name="box_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="box_number"/>
+                                    <field name="dimensions"/>
+                                    <field name="weight"/>
+                                    <field name="tracking_number"/>
+                                    <field name="box_content_ids" widget="many2many_tags" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Transport" name="transport">
+                            <group>
+                                <group string="Carrier Information">
+                                    <field name="transport_type"/>
+                                    <field name="carrier_code"/>
+                                    <field name="carrier_name"/>
+                                    <field name="pro_number" invisible="transport_type != 'ltl'"/>
+                                </group>
+                                <group string="Shipping Dates">
+                                    <field name="ship_date"/>
+                                    <field name="shipped_date"/>
+                                    <field name="estimated_arrival_date"/>
+                                    <field name="confirmed_arrival_date"/>
+                                </group>
+                            </group>
+                            <group string="Partnered Carrier" invisible="transport_type == 'self'">
+                                <group>
+                                    <field name="is_partnered"/>
+                                    <field name="partnered_estimate" widget="monetary" invisible="not is_partnered"/>
+                                    <field name="currency_id" invisible="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Receiving" name="receiving" invisible="state not in ['receiving', 'closed']">
+                            <group>
+                                <group string="Receiving Summary">
+                                    <field name="received_date"/>
+                                    <field name="units_shipped"/>
+                                    <field name="units_received"/>
+                                    <field name="units_discrepancy"/>
+                                </group>
+                            </group>
+                            <group string="Discrepancy Items" invisible="not discrepancy_item_ids">
+                                <field name="discrepancy_item_ids" nolabel="1" readonly="1">
+                                    <list>
+                                        <field name="product_id"/>
+                                        <field name="sku"/>
+                                        <field name="quantity_shipped"/>
+                                        <field name="quantity_received"/>
+                                        <field name="discrepancy"/>
+                                        <field name="reason"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="notes" placeholder="Internal notes about this shipment..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="amazon_fba_shipment_view_kanban" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.kanban</field>
+        <field name="model">amazon.fba.shipment</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" sample="1" default_group_by="state">
+                <field name="name"/>
+                <field name="shipment_id"/>
+                <field name="destination_fulfillment_center"/>
+                <field name="item_count"/>
+                <field name="total_units"/>
+                <field name="state"/>
+                <field name="shipped_date"/>
+                <progressbar field="state" colors='{"draft": "muted", "working": "info", "shipped": "warning", "receiving": "primary", "closed": "success", "canceled": "danger"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <strong class="o_kanban_record_title">
+                                    <field name="name"/>
+                                </strong>
+                                <field name="state" widget="badge"
+                                       decoration-info="state == 'working'"
+                                       decoration-warning="state == 'shipped'"
+                                       decoration-success="state in ['receiving', 'closed']"
+                                       decoration-muted="state == 'canceled'"/>
+                            </div>
+                            <div class="text-muted small mb-1">
+                                <i class="fa fa-barcode"/> <field name="shipment_id"/>
+                            </div>
+                            <div class="mb-2">
+                                <i class="fa fa-building"/> <field name="destination_fulfillment_center"/>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>
+                                    <i class="fa fa-cubes"/> <field name="item_count"/> SKUs
+                                </span>
+                                <span class="fw-bold">
+                                    <field name="total_units"/> units
+                                </span>
+                            </div>
+                            <div class="text-muted small mt-2" t-if="record.shipped_date.raw_value">
+                                <i class="fa fa-truck"/> Shipped: <field name="shipped_date" widget="date"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="amazon_fba_shipment_view_search" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.search</field>
+        <field name="model">amazon.fba.shipment</field>
+        <field name="arch" type="xml">
+            <search string="Search FBA Shipments">
+                <field name="name"/>
+                <field name="shipment_id"/>
+                <field name="account_id"/>
+                <field name="marketplace_id"/>
+                <field name="destination_fulfillment_center"/>
+                <separator/>
+                <filter name="filter_draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_working" string="Working" domain="[('state', '=', 'working')]"/>
+                <filter name="filter_shipped" string="Shipped" domain="[('state', '=', 'shipped')]"/>
+                <filter name="filter_receiving" string="Receiving" domain="[('state', '=', 'receiving')]"/>
+                <filter name="filter_closed" string="Closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter name="filter_active" string="Active" domain="[('state', 'not in', ['canceled', 'closed'])]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_marketplace" string="Marketplace" context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_fc" string="Fulfillment Center" context="{'group_by': 'destination_fulfillment_center'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="amazon_fba_shipment_action" model="ir.actions.act_window">
+        <field name="name">FBA Shipments</field>
+        <field name="res_model">amazon.fba.shipment</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="amazon_fba_shipment_view_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first FBA Shipment
+            </p>
+            <p>
+                Send inventory to Amazon's fulfillment centers (FBA). Create inbound 
+                shipments, print labels, and track receiving status.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon FBA Shipment Item Views                                -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_fba_shipment_item_view_tree" model="ir.ui.view">
+        <field name="name">amazon.fba.shipment.item.tree</field>
+        <field name="model">amazon.fba.shipment.item</field>
+        <field name="arch" type="xml">
+            <list string="Shipment Items">
+                <field name="shipment_id"/>
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="fnsku"/>
+                <field name="quantity_shipped"/>
+                <field name="quantity_received"/>
+                <field name="prep_instruction"/>
+                <field name="labeling_owner"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon FBA Removal Order Views                                -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_fba_removal_view_tree" model="ir.ui.view">
+        <field name="name">amazon.fba.removal.tree</field>
+        <field name="model">amazon.fba.removal</field>
+        <field name="arch" type="xml">
+            <list string="Removal Orders" decoration-success="state == 'completed'" decoration-muted="state == 'canceled'">
+                <field name="removal_order_id"/>
+                <field name="account_id"/>
+                <field name="removal_type"/>
+                <field name="create_date"/>
+                <field name="item_count"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'pending'"
+                       decoration-warning="state == 'processing'"
+                       decoration-success="state == 'completed'"
+                       decoration-muted="state == 'canceled'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="amazon_fba_removal_view_form" model="ir.ui.view">
+        <field name="name">amazon.fba.removal.form</field>
+        <field name="model">amazon.fba.removal</field>
+        <field name="arch" type="xml">
+            <form string="Removal Order">
+                <header>
+                    <button name="action_create_removal" 
+                            string="Create Removal Order" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_sync_status" 
+                            string="Sync Status" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state in ['draft', 'completed', 'canceled']"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,pending,processing,completed"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Removal Details">
+                            <field name="removal_order_id"/>
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                            <field name="removal_type"/>
+                            <field name="removal_reason"/>
+                        </group>
+                        <group string="Ship To" invisible="removal_type != 'return'">
+                            <field name="ship_to_partner_id"/>
+                            <field name="ship_to_address"/>
+                        </group>
+                    </group>
+                    <group string="Items">
+                        <field name="item_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="product_id"/>
+                                <field name="sku"/>
+                                <field name="fnsku"/>
+                                <field name="disposition"/>
+                                <field name="quantity_requested"/>
+                                <field name="quantity_shipped"/>
+                                <field name="quantity_disposed"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="amazon_fba_removal_view_search" model="ir.ui.view">
+        <field name="name">amazon.fba.removal.search</field>
+        <field name="model">amazon.fba.removal</field>
+        <field name="arch" type="xml">
+            <search string="Search Removal Orders">
+                <field name="removal_order_id"/>
+                <field name="account_id"/>
+                <separator/>
+                <filter name="filter_pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                <filter name="filter_completed" string="Completed" domain="[('state', '=', 'completed')]"/>
+                <filter name="filter_return" string="Returns" domain="[('removal_type', '=', 'return')]"/>
+                <filter name="filter_disposal" string="Disposals" domain="[('removal_type', '=', 'disposal')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_type" string="Type" context="{'group_by': 'removal_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="amazon_fba_removal_action" model="ir.actions.act_window">
+        <field name="name">Removal Orders</field>
+        <field name="res_model">amazon.fba.removal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="amazon_fba_removal_view_search"/>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Amazon FBA Fee Views                                          -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_fba_fee_view_tree" model="ir.ui.view">
+        <field name="name">amazon.fba.fee.tree</field>
+        <field name="model">amazon.fba.fee</field>
+        <field name="arch" type="xml">
+            <list string="FBA Fees">
+                <field name="fee_date"/>
+                <field name="account_id"/>
+                <field name="fee_type"/>
+                <field name="description"/>
+                <field name="product_id" optional="show"/>
+                <field name="sku" optional="show"/>
+                <field name="quantity"/>
+                <field name="amount" widget="monetary" sum="Total"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="amazon_fba_fee_view_search" model="ir.ui.view">
+        <field name="name">amazon.fba.fee.search</field>
+        <field name="model">amazon.fba.fee</field>
+        <field name="arch" type="xml">
+            <search string="Search FBA Fees">
+                <field name="account_id"/>
+                <field name="fee_type"/>
+                <field name="sku"/>
+                <filter name="filter_storage" string="Storage Fees" domain="[('fee_type', '=', 'storage')]"/>
+                <filter name="filter_fulfillment" string="Fulfillment Fees" domain="[('fee_type', '=', 'fulfillment')]"/>
+                <filter name="filter_removal" string="Removal Fees" domain="[('fee_type', '=', 'removal')]"/>
+                <filter name="filter_long_term" string="Long-term Storage" domain="[('fee_type', '=', 'long_term_storage')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_type" string="Fee Type" context="{'group_by': 'fee_type'}"/>
+                    <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by': 'fee_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="amazon_fba_fee_action" model="ir.actions.act_window">
+        <field name="name">FBA Fees</field>
+        <field name="res_model">amazon.fba.fee</field>
+        <field name="view_mode">tree</field>
+        <field name="search_view_id" ref="amazon_fba_fee_view_search"/>
+    </record>
+
+</odoo>

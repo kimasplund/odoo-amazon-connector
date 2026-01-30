@@ -1,0 +1,957 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Amazon Connector - Email Templates
+    
+    Email notification templates for:
+    - New Amazon order notification
+    - Low inventory alert
+    - FBA shipment received
+    - Settlement processed
+    - Listing issues alert
+    - Buy box lost alert
+-->
+<odoo>
+    <data noupdate="1">
+        
+        <!-- ==================== NEW ORDER NOTIFICATION ==================== -->
+        <record id="mail_template_amazon_new_order" model="mail.template">
+            <field name="name">Amazon: New Order Notification</field>
+            <field name="model_id" ref="model_amazon_order"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.notification_email or object.account_id.user_id.email }}</field>
+            <field name="subject">🛒 New Amazon Order: {{ object.amazon_order_id }} ({{ object.marketplace_id.name }})</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #FF9900; color: #232F3E; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">📦 New Amazon Order</h1>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f9f9f9;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px; font-weight: bold; width: 150px;">Order ID:</td>
+                <td style="padding: 10px;">{{ object.amazon_order_id }}</td>
+            </tr>
+            <tr style="background-color: #fff;">
+                <td style="padding: 10px; font-weight: bold;">Marketplace:</td>
+                <td style="padding: 10px;">{{ object.marketplace_id.name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">Order Date:</td>
+                <td style="padding: 10px;">{{ object.purchase_date }}</td>
+            </tr>
+            <tr style="background-color: #fff;">
+                <td style="padding: 10px; font-weight: bold;">Status:</td>
+                <td style="padding: 10px;">
+                    <span style="background-color: #28a745; color: white; padding: 3px 8px; border-radius: 3px;">
+                        {{ object.status }}
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">Fulfillment:</td>
+                <td style="padding: 10px;">{{ object.fulfillment_channel }}</td>
+            </tr>
+            <tr style="background-color: #fff;">
+                <td style="padding: 10px; font-weight: bold;">Ship By:</td>
+                <td style="padding: 10px;">{{ object.latest_ship_date or 'N/A' }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">Order Items</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #232F3E; color: white;">
+                    <th style="padding: 10px; text-align: left;">Product</th>
+                    <th style="padding: 10px; text-align: center;">Qty</th>
+                    <th style="padding: 10px; text-align: right;">Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                % for line in object.order_line_ids:
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px;">
+                        <strong>{{ line.title or line.seller_sku }}</strong><br/>
+                        <small style="color: #666;">SKU: {{ line.seller_sku }} | ASIN: {{ line.asin }}</small>
+                    </td>
+                    <td style="padding: 10px; text-align: center;">{{ line.quantity_ordered }}</td>
+                    <td style="padding: 10px; text-align: right;">{{ line.item_price }} {{ object.currency_code }}</td>
+                </tr>
+                % endfor
+            </tbody>
+            <tfoot>
+                <tr style="background-color: #f9f9f9; font-weight: bold;">
+                    <td colspan="2" style="padding: 10px; text-align: right;">Order Total:</td>
+                    <td style="padding: 10px; text-align: right; color: #B12704;">{{ object.order_total }} {{ object.currency_code }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    
+    % if object.fulfillment_channel == 'MFN':
+    <div style="padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+        <strong>⚠️ Action Required:</strong> This is a Merchant Fulfilled order. Please ship by {{ object.latest_ship_date }}.
+    </div>
+    % endif
+    
+    <div style="padding: 20px; text-align: center; background-color: #232F3E;">
+        <a href="{{ object.get_odoo_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            View Order in Odoo
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated notification from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="lang">{{ object.partner_id.lang }}</field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== LOW INVENTORY ALERT ==================== -->
+        <record id="mail_template_amazon_low_inventory" model="mail.template">
+            <field name="name">Amazon: Low Inventory Alert</field>
+            <field name="model_id" ref="model_amazon_fba_inventory"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.inventory_alert_email or object.account_id.notification_email }}</field>
+            <field name="subject">⚠️ Low FBA Inventory Alert: {{ object.seller_sku }} ({{ object.fulfillable_quantity }} units)</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #dc3545; color: white; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">⚠️ Low Inventory Alert</h1>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb;">
+        <p style="margin: 0; font-size: 16px;">
+            <strong>Attention:</strong> The following FBA product has fallen below the reorder threshold.
+        </p>
+    </div>
+    
+    <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse; background-color: #f9f9f9;">
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Product:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.product_id.name or object.seller_sku }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Seller SKU:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.seller_sku }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">FNSKU:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.fnsku }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">ASIN:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.asin }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Current Stock:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">
+                    <span style="color: #dc3545; font-size: 18px; font-weight: bold;">{{ object.fulfillable_quantity }} units</span>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Reorder Point:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.reorder_point }} units</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold;">Inbound Quantity:</td>
+                <td style="padding: 12px;">{{ object.inbound_quantity or 0 }} units</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E;">Inventory Status Breakdown</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px;">Fulfillable:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.fulfillable_quantity }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Reserved:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.reserved_quantity or 0 }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Unfulfillable:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.unfulfillable_quantity or 0 }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Inbound Working:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.inbound_working_quantity or 0 }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Inbound Shipped:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.inbound_shipped_quantity or 0 }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Inbound Receiving:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.inbound_receiving_quantity or 0 }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px; background-color: #d4edda; border-left: 4px solid #28a745;">
+        <strong>💡 Recommended Action:</strong><br/>
+        Consider creating an FBA inbound shipment to replenish stock before running out.
+        Suggested quantity: {{ max(object.reorder_point * 2 - object.fulfillable_quantity, 0) }} units
+    </div>
+    
+    <div style="padding: 20px; text-align: center;">
+        <a href="{{ object.get_odoo_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 10px;">
+            View Inventory
+        </a>
+        <a href="{{ object.get_fba_shipment_url() }}" style="display: inline-block; background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            Create FBA Shipment
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated alert from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }} | Marketplace: {{ object.marketplace_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== FBA SHIPMENT RECEIVED ==================== -->
+        <record id="mail_template_amazon_fba_received" model="mail.template">
+            <field name="name">Amazon: FBA Shipment Received</field>
+            <field name="model_id" ref="model_amazon_fba_shipment"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.notification_email }}</field>
+            <field name="subject">✅ FBA Shipment Received: {{ object.shipment_id }} ({{ object.shipment_name }})</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #28a745; color: white; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">✅ FBA Shipment Received</h1>
+    </div>
+    
+    <div style="padding: 20px; background-color: #d4edda; border: 1px solid #c3e6cb;">
+        <p style="margin: 0; font-size: 16px;">
+            <strong>Great news!</strong> Your FBA shipment has been received at Amazon's fulfillment center.
+        </p>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">Shipment Details</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px; font-weight: bold; width: 150px;">Shipment ID:</td>
+                <td style="padding: 10px;">{{ object.shipment_id }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Shipment Name:</td>
+                <td style="padding: 10px;">{{ object.shipment_name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">Destination:</td>
+                <td style="padding: 10px;">{{ object.destination_fulfillment_center_id }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Status:</td>
+                <td style="padding: 10px;">
+                    <span style="background-color: #28a745; color: white; padding: 3px 8px; border-radius: 3px;">
+                        {{ object.status }}
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">Received Date:</td>
+                <td style="padding: 10px;">{{ object.received_date or context.get('today') }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">Items Received</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #232F3E; color: white;">
+                    <th style="padding: 10px; text-align: left;">Product</th>
+                    <th style="padding: 10px; text-align: center;">Shipped</th>
+                    <th style="padding: 10px; text-align: center;">Received</th>
+                    <th style="padding: 10px; text-align: center;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                % for item in object.item_ids:
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px;">
+                        <strong>{{ item.product_id.name or item.seller_sku }}</strong><br/>
+                        <small style="color: #666;">SKU: {{ item.seller_sku }}</small>
+                    </td>
+                    <td style="padding: 10px; text-align: center;">{{ item.quantity_shipped }}</td>
+                    <td style="padding: 10px; text-align: center;">
+                        % if item.quantity_received == item.quantity_shipped:
+                        <span style="color: #28a745; font-weight: bold;">{{ item.quantity_received }}</span>
+                        % elif item.quantity_received < item.quantity_shipped:
+                        <span style="color: #dc3545; font-weight: bold;">{{ item.quantity_received }}</span>
+                        % else:
+                        {{ item.quantity_received }}
+                        % endif
+                    </td>
+                    <td style="padding: 10px; text-align: center;">
+                        % if item.quantity_received == item.quantity_shipped:
+                        <span style="color: #28a745;">✓ Complete</span>
+                        % elif item.quantity_received < item.quantity_shipped:
+                        <span style="color: #dc3545;">⚠️ Discrepancy</span>
+                        % else:
+                        <span style="color: #ffc107;">● Processing</span>
+                        % endif
+                    </td>
+                </tr>
+                % endfor
+            </tbody>
+        </table>
+    </div>
+    
+    % if object.has_discrepancies:
+    <div style="padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+        <strong>⚠️ Discrepancy Detected:</strong><br/>
+        Some items have received quantities that differ from shipped quantities. 
+        Amazon may reconcile these automatically within 30 days, or you may need to open a case in Seller Central.
+    </div>
+    % endif
+    
+    <div style="padding: 20px; text-align: center;">
+        <a href="{{ object.get_odoo_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            View Shipment Details
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated notification from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== SETTLEMENT PROCESSED ==================== -->
+        <record id="mail_template_amazon_settlement" model="mail.template">
+            <field name="name">Amazon: Settlement Report Processed</field>
+            <field name="model_id" ref="model_amazon_settlement"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.finance_email or object.account_id.notification_email }}</field>
+            <field name="subject">💰 Amazon Settlement Processed: {{ object.settlement_id }} ({{ object.total_amount }} {{ object.currency_code }})</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #232F3E; color: #FF9900; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">💰 Settlement Report</h1>
+    </div>
+    
+    <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px; font-weight: bold; width: 150px;">Settlement ID:</td>
+                <td style="padding: 10px;">{{ object.settlement_id }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Period:</td>
+                <td style="padding: 10px;">{{ object.settlement_start_date }} to {{ object.settlement_end_date }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">Marketplace:</td>
+                <td style="padding: 10px;">{{ object.marketplace_id.name }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Status:</td>
+                <td style="padding: 10px;">
+                    <span style="background-color: #28a745; color: white; padding: 3px 8px; border-radius: 3px;">
+                        {{ object.state }}
+                    </span>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f9f9f9;">
+        <h3 style="color: #232F3E; margin-top: 0;">Financial Summary</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px;">Product Sales:</td>
+                <td style="padding: 8px; text-align: right; color: #28a745;">+ {{ object.product_sales }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="background-color: white;">
+                <td style="padding: 8px;">Product Sales Tax:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.product_sales_tax or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Shipping Credits:</td>
+                <td style="padding: 8px; text-align: right; color: #28a745;">+ {{ object.shipping_credits or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="background-color: white;">
+                <td style="padding: 8px;">Gift Wrap Credits:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.gift_wrap_credits or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Promotional Rebates:</td>
+                <td style="padding: 8px; text-align: right; color: #dc3545;">- {{ object.promotional_rebates or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="background-color: white;">
+                <td style="padding: 8px;">Selling Fees:</td>
+                <td style="padding: 8px; text-align: right; color: #dc3545;">- {{ object.selling_fees }} {{ object.currency_code }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">FBA Fees:</td>
+                <td style="padding: 8px; text-align: right; color: #dc3545;">- {{ object.fba_fees or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="background-color: white;">
+                <td style="padding: 8px;">Other Transaction Fees:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.other_transaction_fees or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Refunds:</td>
+                <td style="padding: 8px; text-align: right; color: #dc3545;">- {{ object.refunds or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="background-color: white;">
+                <td style="padding: 8px;">Other:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.other or '0.00' }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="border-top: 2px solid #232F3E; font-size: 18px; font-weight: bold;">
+                <td style="padding: 12px;">Net Proceeds:</td>
+                <td style="padding: 12px; text-align: right; color: {{ 'green' if object.total_amount > 0 else 'red' }};">
+                    {{ object.total_amount }} {{ object.currency_code }}
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E;">Order Summary</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Total Orders:</td>
+                <td style="padding: 8px; text-align: right; font-weight: bold;">{{ object.total_orders }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Total Units Sold:</td>
+                <td style="padding: 8px; text-align: right; font-weight: bold;">{{ object.total_units }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Refunded Orders:</td>
+                <td style="padding: 8px; text-align: right;">{{ object.refunded_orders or 0 }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    % if object.deposit_date:
+    <div style="padding: 20px; background-color: #d4edda; border-left: 4px solid #28a745;">
+        <strong>💳 Deposit Information:</strong><br/>
+        Expected deposit date: <strong>{{ object.deposit_date }}</strong><br/>
+        Amount: <strong>{{ object.total_amount }} {{ object.currency_code }}</strong>
+    </div>
+    % endif
+    
+    <div style="padding: 20px; text-align: center;">
+        <a href="{{ object.get_odoo_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 10px;">
+            View Settlement
+        </a>
+        <a href="{{ object.get_reconciliation_url() }}" style="display: inline-block; background-color: #232F3E; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            Reconcile in Accounting
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated notification from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== LISTING ISSUES ALERT ==================== -->
+        <record id="mail_template_amazon_listing_issues" model="mail.template">
+            <field name="name">Amazon: Listing Issues Alert</field>
+            <field name="model_id" ref="model_amazon_product_listing"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.notification_email }}</field>
+            <field name="subject">⚠️ Amazon Listing Issues: {{ object.seller_sku }} ({{ object.issue_count }} issues)</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #ffc107; color: #232F3E; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">⚠️ Listing Issues Detected</h1>
+    </div>
+    
+    <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px; font-weight: bold; width: 150px;">Product:</td>
+                <td style="padding: 10px;">{{ object.product_id.name }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Seller SKU:</td>
+                <td style="padding: 10px;">{{ object.seller_sku }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">ASIN:</td>
+                <td style="padding: 10px;">{{ object.asin }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Marketplace:</td>
+                <td style="padding: 10px;">{{ object.marketplace_id.name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">Status:</td>
+                <td style="padding: 10px;">
+                    <span style="background-color: {{ '#dc3545' if object.status == 'SUPPRESSED' else '#ffc107' }}; color: white; padding: 3px 8px; border-radius: 3px;">
+                        {{ object.status }}
+                    </span>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">Issues Found</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #232F3E; color: white;">
+                    <th style="padding: 10px; text-align: left;">Severity</th>
+                    <th style="padding: 10px; text-align: left;">Code</th>
+                    <th style="padding: 10px; text-align: left;">Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                % for issue in object.get_listing_issues():
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px;">
+                        % if issue.get('Severity') == 'ERROR':
+                        <span style="color: #dc3545; font-weight: bold;">🔴 Error</span>
+                        % elif issue.get('Severity') == 'WARNING':
+                        <span style="color: #ffc107; font-weight: bold;">🟡 Warning</span>
+                        % else:
+                        <span style="color: #17a2b8;">🔵 Info</span>
+                        % endif
+                    </td>
+                    <td style="padding: 10px;"><code>{{ issue.get('Code', 'N/A') }}</code></td>
+                    <td style="padding: 10px;">{{ issue.get('Message', 'No description') }}</td>
+                </tr>
+                % endfor
+            </tbody>
+        </table>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f8d7da; border-left: 4px solid #dc3545;">
+        <strong>🔧 Action Required:</strong><br/>
+        Please review and resolve these issues to ensure your listing remains active and visible to customers.
+    </div>
+    
+    <div style="padding: 20px; text-align: center;">
+        <a href="{{ object.get_odoo_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            Fix in Odoo
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated alert from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== BUY BOX LOST ALERT ==================== -->
+        <record id="mail_template_amazon_buy_box_lost" model="mail.template">
+            <field name="name">Amazon: Buy Box Lost Alert</field>
+            <field name="model_id" ref="model_amazon_product_listing"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.notification_email }}</field>
+            <field name="subject">📉 Buy Box Lost: {{ object.seller_sku }} on {{ object.marketplace_id.name }}</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #dc3545; color: white; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">📉 Buy Box Lost</h1>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f8d7da; border: 1px solid #f5c6cb;">
+        <p style="margin: 0; font-size: 16px;">
+            <strong>Alert:</strong> You have lost the Buy Box for this listing.
+        </p>
+    </div>
+    
+    <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 10px; font-weight: bold; width: 150px;">Product:</td>
+                <td style="padding: 10px;">{{ object.product_id.name }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Seller SKU:</td>
+                <td style="padding: 10px;">{{ object.seller_sku }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; font-weight: bold;">ASIN:</td>
+                <td style="padding: 10px;">{{ object.asin }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 10px; font-weight: bold;">Marketplace:</td>
+                <td style="padding: 10px;">{{ object.marketplace_id.name }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f9f9f9;">
+        <h3 style="color: #232F3E; margin-top: 0;">Price Comparison</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px;">Your Price:</td>
+                <td style="padding: 8px; text-align: right; font-weight: bold;">{{ object.current_price }} {{ object.currency_code }}</td>
+            </tr>
+            <tr style="background-color: white;">
+                <td style="padding: 8px;">Current Buy Box Price:</td>
+                <td style="padding: 8px; text-align: right; font-weight: bold; color: #28a745;">{{ object.buy_box_price }} {{ object.currency_code }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Price Difference:</td>
+                <td style="padding: 8px; text-align: right; color: #dc3545;">
+                    +{{ "%.2f"|format(object.current_price - object.buy_box_price) }} {{ object.currency_code }}
+                    ({{ "%.1f"|format(((object.current_price - object.buy_box_price) / object.buy_box_price) * 100) }}%)
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+        <strong>💡 Recommendations:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>Review your pricing strategy</li>
+            <li>Consider enabling automatic repricing</li>
+            <li>Check your seller metrics (feedback, shipping time)</li>
+            <li>Ensure you have sufficient inventory</li>
+        </ul>
+    </div>
+    
+    <div style="padding: 20px; text-align: center;">
+        <a href="{{ object.get_odoo_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-right: 10px;">
+            View Listing
+        </a>
+        <a href="{{ object.get_repricing_url() }}" style="display: inline-block; background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            Adjust Price
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated alert from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== DAILY SYNC SUMMARY ==================== -->
+        <record id="mail_template_amazon_daily_summary" model="mail.template">
+            <field name="name">Amazon: Daily Sync Summary</field>
+            <field name="model_id" ref="model_amazon_account"/>
+            <field name="email_from">{{ (object.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.notification_email }}</field>
+            <field name="subject">📊 Amazon Daily Summary: {{ object.name }} ({{ context.get('summary_date', 'Today') }})</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #232F3E; color: #FF9900; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">📊 Daily Summary</h1>
+        <p style="margin: 5px 0 0 0; color: white;">{{ object.name }}</p>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">📦 Orders Today</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px;">New Orders:</td>
+                <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 18px;">{{ context.get('new_orders', 0) }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Shipped:</td>
+                <td style="padding: 8px; text-align: right;">{{ context.get('shipped_orders', 0) }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Pending Shipment:</td>
+                <td style="padding: 8px; text-align: right;">{{ context.get('pending_orders', 0) }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Revenue:</td>
+                <td style="padding: 8px; text-align: right; color: #28a745; font-weight: bold;">{{ context.get('daily_revenue', '0.00') }} {{ object.default_currency_id.name }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h3 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">📈 Inventory Status</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 8px;">Active Listings:</td>
+                <td style="padding: 8px; text-align: right;">{{ context.get('active_listings', 0) }}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td style="padding: 8px;">Low Stock Items:</td>
+                <td style="padding: 8px; text-align: right; color: {{ '#dc3545' if context.get('low_stock_count', 0) > 0 else '#28a745' }};">{{ context.get('low_stock_count', 0) }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;">Out of Stock:</td>
+                <td style="padding: 8px; text-align: right; color: {{ '#dc3545' if context.get('out_of_stock_count', 0) > 0 else '#28a745' }};">{{ context.get('out_of_stock_count', 0) }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    % if context.get('sync_errors'):
+    <div style="padding: 20px; background-color: #f8d7da; border-left: 4px solid #dc3545;">
+        <strong>⚠️ Sync Errors:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            % for error in context.get('sync_errors', [])[:5]:
+            <li>{{ error }}</li>
+            % endfor
+        </ul>
+    </div>
+    % endif
+    
+    <div style="padding: 20px; text-align: center;">
+        <a href="{{ object.get_dashboard_url() }}" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            View Full Dashboard
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is your daily summary from the Amazon Connector.</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== CRITICAL RESTOCK ALERT ==================== -->
+        <record id="mail_template_restock_critical_alert" model="mail.template">
+            <field name="name">Amazon: Critical Restock Alert</field>
+            <field name="model_id" ref="model_amazon_restock_suggestion"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.inventory_alert_email or object.account_id.notification_email }}</field>
+            <field name="subject">🚨 CRITICAL: {{ object.product_sku }} Running Out of Stock!</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="background-color: #dc3545; color: white; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">🚨 CRITICAL STOCK ALERT</h1>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f8d7da; border-left: 4px solid #dc3545;">
+        <h2 style="color: #dc3545; margin: 0;">Immediate Action Required!</h2>
+        <p style="margin: 10px 0 0 0;">
+            <strong>{{ object.product_name or object.product_sku }}</strong> is critically low on stock 
+            and will run out in approximately <strong>{{ object.forecast_id.days_until_stockout or 'N/A' }}</strong> days!
+        </p>
+    </div>
+    
+    <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse; background-color: #f9f9f9;">
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Product:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.product_name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">SKU:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.product_sku }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Marketplace:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.marketplace_id.name }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Current Stock:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd; color: #dc3545; font-weight: bold;">{{ object.current_stock }} units</td>
+            </tr>
+            <tr>
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Est. Stockout Date:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd;">{{ object.estimated_stockout_date or 'N/A' }}</td>
+            </tr>
+            <tr style="background-color: #fff3cd;">
+                <td style="padding: 12px; font-weight: bold; border-bottom: 1px solid #ddd;">Recommended Order:</td>
+                <td style="padding: 12px; border-bottom: 1px solid #ddd; font-weight: bold; color: #856404;">{{ object.recommended_qty }} units</td>
+            </tr>
+            <tr style="background-color: #fff3cd;">
+                <td style="padding: 12px; font-weight: bold;">Order By Date:</td>
+                <td style="padding: 12px; font-weight: bold; color: #856404;">{{ object.suggested_action_date or 'ASAP' }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="padding: 20px; background-color: #f0f0f0;">
+        <h3 style="margin-top: 0; color: #232F3E;">Analysis</h3>
+        <pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">{{ object.reason or 'No additional details.' }}</pre>
+    </div>
+    
+    % if object.potential_lost_sales:
+    <div style="padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+        <strong>💰 Potential Lost Revenue:</strong> {{ object.potential_lost_sales }} {{ object.currency_id.symbol }}
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">
+            Based on 30-day forecasted demand if stockout occurs.
+        </p>
+    </div>
+    % endif
+    
+    <div style="padding: 20px; text-align: center; background-color: #232F3E;">
+        <a href="{{ object.get_odoo_url() if hasattr(object, 'get_odoo_url') else '#' }}" 
+           style="display: inline-block; background-color: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 16px;">
+            🚀 Take Action Now
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is an automated critical alert from your Amazon Connector.</p>
+        <p>Account: {{ object.account_id.name }}</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+        <!-- ==================== WEEKLY RESTOCK SUMMARY ==================== -->
+        <record id="mail_template_restock_weekly_summary" model="mail.template">
+            <field name="name">Amazon: Weekly Restock Summary</field>
+            <field name="model_id" ref="model_amazon_restock_suggestion"/>
+            <field name="email_from">{{ (object.account_id.company_id.email or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.account_id.inventory_alert_email or object.account_id.notification_email }}</field>
+            <field name="subject">📊 Weekly Restock Summary - {{ context.get('account', object.account_id).name }}</field>
+            <field name="body_html"><![CDATA[
+<div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
+    <div style="background-color: #FF9900; color: #232F3E; padding: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">📊 Weekly Restock Summary</h1>
+        <p style="margin: 10px 0 0 0;">{{ context.get('account', object.account_id).name }}</p>
+    </div>
+    
+    <div style="padding: 20px;">
+        <h2 style="color: #232F3E; border-bottom: 2px solid #FF9900; padding-bottom: 10px;">
+            Pending Suggestions Overview
+        </h2>
+        
+        <!-- Summary Stats -->
+        <div style="display: flex; justify-content: space-around; margin: 20px 0; text-align: center;">
+            <div style="flex: 1; padding: 15px; background-color: #dc3545; color: white; margin: 0 5px; border-radius: 8px;">
+                <div style="font-size: 32px; font-weight: bold;">
+                    {{ context.get('all_suggestions', []) | selectattr('priority', 'eq', 'critical') | list | length }}
+                </div>
+                <div>Critical</div>
+            </div>
+            <div style="flex: 1; padding: 15px; background-color: #ffc107; color: #232F3E; margin: 0 5px; border-radius: 8px;">
+                <div style="font-size: 32px; font-weight: bold;">
+                    {{ context.get('all_suggestions', []) | selectattr('priority', 'eq', 'high') | list | length }}
+                </div>
+                <div>High</div>
+            </div>
+            <div style="flex: 1; padding: 15px; background-color: #17a2b8; color: white; margin: 0 5px; border-radius: 8px;">
+                <div style="font-size: 32px; font-weight: bold;">
+                    {{ context.get('all_suggestions', []) | selectattr('priority', 'eq', 'medium') | list | length }}
+                </div>
+                <div>Medium</div>
+            </div>
+            <div style="flex: 1; padding: 15px; background-color: #6c757d; color: white; margin: 0 5px; border-radius: 8px;">
+                <div style="font-size: 32px; font-weight: bold;">
+                    {{ context.get('all_suggestions', []) | selectattr('priority', 'eq', 'low') | list | length }}
+                </div>
+                <div>Low</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Critical & High Priority Items -->
+    % set urgent = context.get('all_suggestions', []) | selectattr('priority', 'in', ['critical', 'high']) | list
+    % if urgent:
+    <div style="padding: 0 20px 20px 20px;">
+        <h3 style="color: #dc3545;">🚨 Urgent Action Required ({{ urgent | length }} items)</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="background-color: #232F3E; color: white;">
+                    <th style="padding: 10px; text-align: left;">SKU</th>
+                    <th style="padding: 10px; text-align: left;">Product</th>
+                    <th style="padding: 10px; text-align: center;">Stock</th>
+                    <th style="padding: 10px; text-align: center;">Restock Qty</th>
+                    <th style="padding: 10px; text-align: center;">Action By</th>
+                </tr>
+            </thead>
+            <tbody>
+                % for suggestion in urgent[:10]:
+                <tr style="border-bottom: 1px solid #ddd; {{ 'background-color: #f8d7da;' if suggestion.priority == 'critical' else 'background-color: #fff3cd;' }}">
+                    <td style="padding: 10px;">{{ suggestion.product_sku }}</td>
+                    <td style="padding: 10px;">{{ (suggestion.product_name or '')[:30] }}{{ '...' if (suggestion.product_name or '')|length > 30 else '' }}</td>
+                    <td style="padding: 10px; text-align: center; {{ 'color: #dc3545; font-weight: bold;' if suggestion.current_stock < 10 else '' }}">{{ suggestion.current_stock }}</td>
+                    <td style="padding: 10px; text-align: center; font-weight: bold;">{{ suggestion.recommended_qty }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ suggestion.suggested_action_date or 'ASAP' }}</td>
+                </tr>
+                % endfor
+            </tbody>
+        </table>
+        % if urgent | length > 10:
+        <p style="color: #666; font-style: italic;">... and {{ urgent | length - 10 }} more items</p>
+        % endif
+    </div>
+    % endif
+    
+    <!-- Overdue Items -->
+    % set overdue = context.get('all_suggestions', []) | selectattr('is_overdue') | list
+    % if overdue:
+    <div style="padding: 0 20px 20px 20px;">
+        <h3 style="color: #856404;">⏰ Overdue Actions ({{ overdue | length }} items)</h3>
+        <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 15px;">
+            <p style="margin: 0;">The following items have passed their recommended action date:</p>
+            <ul style="margin: 10px 0;">
+                % for suggestion in overdue[:5]:
+                <li><strong>{{ suggestion.product_sku }}</strong> - was due {{ suggestion.suggested_action_date }}</li>
+                % endfor
+            </ul>
+        </div>
+    </div>
+    % endif
+    
+    <!-- Removal Suggestions -->
+    % set removals = context.get('all_suggestions', []) | selectattr('suggestion_type', 'eq', 'removal') | list
+    % if removals:
+    <div style="padding: 0 20px 20px 20px;">
+        <h3 style="color: #17a2b8;">📦 Overstock Recommendations ({{ removals | length }} items)</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="background-color: #17a2b8; color: white;">
+                    <th style="padding: 10px; text-align: left;">SKU</th>
+                    <th style="padding: 10px; text-align: center;">Current Stock</th>
+                    <th style="padding: 10px; text-align: center;">Remove Qty</th>
+                    <th style="padding: 10px; text-align: center;">Est. Savings</th>
+                </tr>
+            </thead>
+            <tbody>
+                % for suggestion in removals[:5]:
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px;">{{ suggestion.product_sku }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ suggestion.current_stock }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ suggestion.recommended_qty }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ suggestion.storage_savings }} {{ suggestion.currency_id.symbol }}/mo</td>
+                </tr>
+                % endfor
+            </tbody>
+        </table>
+    </div>
+    % endif
+    
+    <div style="padding: 20px; text-align: center; background-color: #232F3E;">
+        <a href="#" style="display: inline-block; background-color: #FF9900; color: #232F3E; padding: 15px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+            Review All Suggestions in Odoo
+        </a>
+    </div>
+    
+    <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>This is your weekly restock summary from the Amazon Connector.</p>
+        <p>Sent every Monday morning. Manage preferences in your account settings.</p>
+    </div>
+</div>
+]]></field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+        
+    </data>
+</odoo>

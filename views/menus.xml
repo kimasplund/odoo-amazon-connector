@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Amazon Connector Menu Structure                               -->
+    <!-- ============================================================ -->
+
+    <!-- Root Menu -->
+    <menuitem id="menu_amazon_root"
+              name="Amazon"
+              web_icon="odoo18_amazon_connector,static/description/icon.png"
+              sequence="45"/>
+
+    <!-- ============================================================ -->
+    <!-- Dashboard                                                     -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_dashboard"
+              name="Dashboard"
+              parent="menu_amazon_root"
+              action="amazon_dashboard_action"
+              sequence="1"/>
+
+    <!-- ============================================================ -->
+    <!-- Orders Menu                                                   -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_orders"
+              name="Orders"
+              parent="menu_amazon_root"
+              sequence="10"/>
+
+    <menuitem id="menu_amazon_orders_all"
+              name="Amazon Orders"
+              parent="menu_amazon_orders"
+              action="amazon_order_action"
+              sequence="1"/>
+
+    <menuitem id="menu_amazon_orders_unshipped"
+              name="Unshipped Orders"
+              parent="menu_amazon_orders"
+              action="amazon_order_action_unshipped"
+              sequence="2"/>
+
+    <menuitem id="menu_amazon_sale_orders"
+              name="Sale Orders"
+              parent="menu_amazon_orders"
+              action="sale_order_action_amazon"
+              sequence="5"/>
+
+    <menuitem id="menu_amazon_orders_returns"
+              name="Returns"
+              parent="menu_amazon_orders"
+              action="amazon_return_action"
+              sequence="10"/>
+
+    <!-- ============================================================ -->
+    <!-- Products Menu                                                 -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_products"
+              name="Products"
+              parent="menu_amazon_root"
+              sequence="20"/>
+
+    <menuitem id="menu_amazon_products_listings"
+              name="Product Listings"
+              parent="menu_amazon_products"
+              action="amazon_product_listing_action"
+              sequence="1"/>
+
+    <menuitem id="menu_amazon_products_inventory"
+              name="Inventory"
+              parent="menu_amazon_products"
+              action="amazon_inventory_action"
+              sequence="5"/>
+
+    <menuitem id="menu_amazon_products_low_stock"
+              name="Low Stock Alerts"
+              parent="menu_amazon_products"
+              action="amazon_inventory_action_low_stock"
+              sequence="6"/>
+
+    <menuitem id="menu_amazon_products_out_of_stock"
+              name="Out of Stock"
+              parent="menu_amazon_products"
+              action="amazon_inventory_action_out_of_stock"
+              sequence="7"/>
+
+    <!-- ============================================================ -->
+    <!-- Inventory Intelligence Menu                                   -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_intelligence"
+              name="Inventory Intelligence"
+              parent="menu_amazon_root"
+              sequence="25"/>
+
+    <menuitem id="menu_amazon_intelligence_forecasts"
+              name="Demand Forecasts"
+              parent="menu_amazon_intelligence"
+              action="amazon_inventory_forecast_action"
+              sequence="1"/>
+
+    <menuitem id="menu_amazon_intelligence_critical"
+              name="Critical Stock Alerts"
+              parent="menu_amazon_intelligence"
+              action="amazon_inventory_forecast_action_critical"
+              sequence="2"/>
+
+    <menuitem id="menu_amazon_intelligence_suggestions"
+              name="Restock Suggestions"
+              parent="menu_amazon_intelligence"
+              action="amazon_restock_suggestion_action"
+              sequence="5"/>
+
+    <menuitem id="menu_amazon_intelligence_urgent"
+              name="Urgent Restock"
+              parent="menu_amazon_intelligence"
+              action="amazon_restock_suggestion_action_urgent"
+              sequence="6"/>
+
+    <menuitem id="menu_amazon_intelligence_history"
+              name="Demand History"
+              parent="menu_amazon_intelligence"
+              action="amazon_demand_history_action"
+              sequence="10"/>
+
+    <!-- ============================================================ -->
+    <!-- FBA Menu                                                      -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_fba"
+              name="FBA"
+              parent="menu_amazon_root"
+              sequence="30"/>
+
+    <menuitem id="menu_amazon_fba_shipments"
+              name="Inbound Shipments"
+              parent="menu_amazon_fba"
+              action="amazon_fba_shipment_action"
+              sequence="1"/>
+
+    <menuitem id="menu_amazon_fba_removals"
+              name="Removal Orders"
+              parent="menu_amazon_fba"
+              action="amazon_fba_removal_action"
+              sequence="5"/>
+
+    <menuitem id="menu_amazon_fba_fees"
+              name="FBA Fees"
+              parent="menu_amazon_fba"
+              action="amazon_fba_fee_action"
+              sequence="10"/>
+
+    <!-- ============================================================ -->
+    <!-- Reports Menu                                                  -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_reports"
+              name="Reports"
+              parent="menu_amazon_root"
+              sequence="40"/>
+
+    <menuitem id="menu_amazon_reports_settlements"
+              name="Settlements"
+              parent="menu_amazon_reports"
+              action="amazon_settlement_action"
+              sequence="1"/>
+
+    <menuitem id="menu_amazon_reports_inventory_history"
+              name="Inventory History"
+              parent="menu_amazon_reports"
+              action="amazon_inventory_history_action"
+              sequence="5"/>
+
+    <menuitem id="menu_amazon_reports_sync_logs"
+              name="Sync Logs"
+              parent="menu_amazon_reports"
+              action="amazon_sync_log_action"
+              sequence="10"/>
+
+    <!-- ============================================================ -->
+    <!-- Configuration Menu                                            -->
+    <!-- ============================================================ -->
+
+    <menuitem id="menu_amazon_config"
+              name="Configuration"
+              parent="menu_amazon_root"
+              sequence="100"
+              groups="base.group_system"/>
+
+    <menuitem id="menu_amazon_config_accounts"
+              name="Accounts"
+              parent="menu_amazon_config"
+              action="amazon_account_action"
+              sequence="1"/>
+
+    <menuitem id="menu_amazon_config_marketplaces"
+              name="Marketplaces"
+              parent="menu_amazon_config"
+              action="amazon_marketplace_action"
+              sequence="5"/>
+
+    <!-- Settings sub-menu -->
+    <menuitem id="menu_amazon_config_settings"
+              name="Settings"
+              parent="menu_amazon_config"
+              sequence="100"/>
+
+    <!-- ============================================================ -->
+    <!-- Quick Access Actions (shown in action menu)                   -->
+    <!-- ============================================================ -->
+
+    <!-- Wizard: Export Products to Amazon -->
+    <record id="amazon_product_export_wizard_action" model="ir.actions.act_window">
+        <field name="name">Export to Amazon</field>
+        <field name="res_model">amazon.product.export.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'default_product_ids': active_ids}</field>
+    </record>
+
+    <!-- Wizard: Create FBA Shipment -->
+    <record id="amazon_fba_shipment_wizard_action" model="ir.actions.act_window">
+        <field name="name">Create FBA Shipment</field>
+        <field name="res_model">amazon.fba.shipment.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Wizard: Import Settlement Report -->
+    <record id="amazon_settlement_import_wizard_action" model="ir.actions.act_window">
+        <field name="name">Import Settlement Report</field>
+        <field name="res_model">amazon.settlement.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_amazon_wizard_export_products"
+              name="Export Products to Amazon"
+              parent="menu_amazon_config_settings"
+              action="amazon_product_export_wizard_action"
+              sequence="10"/>
+
+    <menuitem id="menu_amazon_wizard_create_fba"
+              name="Create FBA Shipment"
+              parent="menu_amazon_config_settings"
+              action="amazon_fba_shipment_wizard_action"
+              sequence="20"/>
+
+    <menuitem id="menu_amazon_wizard_import_settlement"
+              name="Import Settlement"
+              parent="menu_amazon_config_settings"
+              action="amazon_settlement_import_wizard_action"
+              sequence="30"/>
+
+</odoo>

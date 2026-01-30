@@ -1,0 +1,838 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- INVENTORY FORECAST VIEWS                                      -->
+    <!-- ============================================================ -->
+
+    <!-- Forecast Tree View -->
+    <record id="amazon_inventory_forecast_view_tree" model="ir.ui.view">
+        <field name="name">amazon.inventory.forecast.tree</field>
+        <field name="model">amazon.inventory.forecast</field>
+        <field name="arch" type="xml">
+            <list string="Inventory Forecasts" 
+                  decoration-danger="stockout_risk == 'critical'"
+                  decoration-warning="stockout_risk == 'high'"
+                  decoration-info="is_overstock"
+                  sample="1">
+                <field name="product_sku"/>
+                <field name="product_name" optional="show"/>
+                <field name="marketplace_id"/>
+                <field name="current_stock"/>
+                <field name="current_inbound" optional="show"/>
+                <field name="weighted_velocity" string="Velocity (units/day)"/>
+                <field name="velocity_trend" widget="badge"
+                       decoration-success="velocity_trend == 'increasing'"
+                       decoration-warning="velocity_trend == 'decreasing'"
+                       decoration-info="velocity_trend == 'stable'"/>
+                <field name="days_until_stockout"/>
+                <field name="stockout_risk" widget="badge"
+                       decoration-danger="stockout_risk in ('critical', 'high')"
+                       decoration-warning="stockout_risk == 'medium'"
+                       decoration-success="stockout_risk == 'none'"/>
+                <field name="recommended_restock_qty"/>
+                <field name="recommended_restock_date"/>
+                <field name="forecast_confidence" widget="badge" optional="hide"/>
+                <field name="is_overstock" widget="boolean" optional="hide"/>
+                <field name="last_forecast_date" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Forecast Form View -->
+    <record id="amazon_inventory_forecast_view_form" model="ir.ui.view">
+        <field name="name">amazon.inventory.forecast.form</field>
+        <field name="model">amazon.inventory.forecast</field>
+        <field name="arch" type="xml">
+            <form string="Inventory Forecast">
+                <header>
+                    <button name="action_refresh_forecast" 
+                            string="Refresh Forecast" 
+                            type="object" 
+                            class="btn-primary"
+                            icon="fa-refresh"/>
+                    <button name="action_create_restock_suggestion"
+                            string="Create Restock Suggestion"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="recommended_restock_qty == 0"/>
+                    <field name="stockout_risk" widget="statusbar" 
+                           statusbar_visible="none,low,medium,high,critical"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_demand_history"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-line-chart">
+                            <field name="data_points_available" widget="statinfo" string="Data Points"/>
+                        </button>
+                    </div>
+                    
+                    <!-- Ribbons for alerts -->
+                    <widget name="web_ribbon" title="CRITICAL - Restock Now!" 
+                            bg_color="text-bg-danger" 
+                            invisible="stockout_risk != 'critical'"/>
+                    <widget name="web_ribbon" title="HIGH RISK" 
+                            bg_color="text-bg-warning" 
+                            invisible="stockout_risk != 'high'"/>
+                    <widget name="web_ribbon" title="OVERSTOCK" 
+                            bg_color="text-bg-info" 
+                            invisible="not is_overstock"/>
+                    
+                    <div class="oe_title">
+                        <label for="product_id"/>
+                        <h1>
+                            <field name="product_id"/>
+                        </h1>
+                        <field name="product_sku" class="oe_inline text-muted"/>
+                    </div>
+                    
+                    <group>
+                        <group string="Location">
+                            <field name="account_id"/>
+                            <field name="marketplace_id"/>
+                        </group>
+                        <group string="Current Inventory">
+                            <field name="current_stock"/>
+                            <field name="current_reserved"/>
+                            <field name="current_inbound"/>
+                            <field name="total_available"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <!-- Sales Velocity Tab -->
+                        <page string="Sales Velocity" name="velocity">
+                            <group>
+                                <group string="Velocity (units/day)">
+                                    <field name="sales_velocity_7d"/>
+                                    <field name="sales_velocity_30d"/>
+                                    <field name="sales_velocity_90d"/>
+                                    <field name="weighted_velocity"/>
+                                </group>
+                                <group string="Trend Analysis">
+                                    <field name="velocity_trend"/>
+                                    <field name="velocity_trend_percent" widget="percentage"/>
+                                    <field name="seasonality_factor"/>
+                                    <field name="seasonality_confidence"/>
+                                </group>
+                            </group>
+                            <group string="Historical Performance (90 days)">
+                                <group>
+                                    <field name="total_sales_90d"/>
+                                    <field name="total_revenue_90d"/>
+                                </group>
+                                <group>
+                                    <field name="stockout_days_90d"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <!-- Forecast Tab -->
+                        <page string="Demand Forecast" name="forecast">
+                            <group>
+                                <group string="Forecasted Demand">
+                                    <field name="forecasted_demand_30d"/>
+                                    <field name="forecasted_demand_60d"/>
+                                    <field name="forecasted_demand_90d"/>
+                                </group>
+                                <group string="Forecast Quality">
+                                    <field name="forecast_confidence"/>
+                                    <field name="forecast_variance"/>
+                                    <field name="last_forecast_date"/>
+                                </group>
+                            </group>
+                            
+                            <!-- Visual forecast breakdown -->
+                            <div class="alert alert-info" role="alert" invisible="forecast_confidence != 'high'">
+                                <strong>📊 High Confidence Forecast</strong> - Based on 60+ days of consistent sales data.
+                            </div>
+                            <div class="alert alert-warning" role="alert" invisible="forecast_confidence != 'medium'">
+                                <strong>📊 Medium Confidence Forecast</strong> - Based on 30-60 days of sales data.
+                            </div>
+                            <div class="alert alert-secondary" role="alert" invisible="forecast_confidence != 'low'">
+                                <strong>📊 Low Confidence Forecast</strong> - Limited historical data available.
+                            </div>
+                        </page>
+                        
+                        <!-- Restock Recommendation Tab -->
+                        <page string="Restock" name="restock">
+                            <group string="Stockout Risk">
+                                <group>
+                                    <field name="days_until_stockout"/>
+                                    <field name="estimated_stockout_date"/>
+                                    <field name="stockout_risk"/>
+                                    <field name="stockout_risk_score" widget="progressbar"/>
+                                </group>
+                            </group>
+                            
+                            <group string="Restock Configuration">
+                                <group>
+                                    <field name="lead_time_days"/>
+                                    <field name="safety_stock_days"/>
+                                    <field name="target_stock_days"/>
+                                </group>
+                                <group string="Recommendation">
+                                    <field name="recommended_restock_qty" class="oe_read_only fw-bold text-primary"/>
+                                    <field name="recommended_restock_date"/>
+                                </group>
+                            </group>
+                            
+                            <!-- Restock alert box -->
+                            <div class="alert alert-danger" role="alert" invisible="stockout_risk != 'critical'">
+                                <h4><i class="fa fa-exclamation-triangle"/> CRITICAL: Immediate Restock Required!</h4>
+                                <p>You have only <strong><field name="days_until_stockout" class="oe_inline"/></strong> days of stock remaining.</p>
+                                <p>Order <strong><field name="recommended_restock_qty" class="oe_inline"/></strong> units immediately to avoid stockout.</p>
+                            </div>
+                            
+                            <div class="alert alert-warning" role="alert" invisible="stockout_risk != 'high'">
+                                <h4><i class="fa fa-exclamation-circle"/> High Risk: Plan Restock Soon</h4>
+                                <p>Stock will run out in approximately <strong><field name="days_until_stockout" class="oe_inline"/></strong> days.</p>
+                                <p>Recommended: Order <strong><field name="recommended_restock_qty" class="oe_inline"/></strong> units by <strong><field name="recommended_restock_date" class="oe_inline"/></strong>.</p>
+                            </div>
+                        </page>
+                        
+                        <!-- Overstock Tab -->
+                        <page string="Overstock" name="overstock" invisible="not is_overstock and days_of_supply &lt; 90">
+                            <group>
+                                <group string="Overstock Analysis">
+                                    <field name="days_of_supply"/>
+                                    <field name="overstock_threshold_days"/>
+                                    <field name="is_overstock"/>
+                                </group>
+                                <group string="Recommendation">
+                                    <field name="recommended_removal_qty"/>
+                                    <field name="estimated_storage_cost"/>
+                                </group>
+                            </group>
+                            
+                            <div class="alert alert-info" role="alert" invisible="not is_overstock">
+                                <h4><i class="fa fa-archive"/> Overstock Detected</h4>
+                                <p>You have <strong><field name="days_of_supply" class="oe_inline"/></strong> days of supply, exceeding the <strong><field name="overstock_threshold_days" class="oe_inline"/></strong> day threshold.</p>
+                                <p>Consider removing <strong><field name="recommended_removal_qty" class="oe_inline"/></strong> units to optimize storage costs.</p>
+                                <p>Estimated monthly storage cost: <strong><field name="estimated_storage_cost" class="oe_inline"/> <field name="currency_id" class="oe_inline"/></strong></p>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Forecast Kanban View -->
+    <record id="amazon_inventory_forecast_view_kanban" model="ir.ui.view">
+        <field name="name">amazon.inventory.forecast.kanban</field>
+        <field name="model">amazon.inventory.forecast</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" sample="1" default_group_by="stockout_risk">
+                <field name="product_id"/>
+                <field name="product_sku"/>
+                <field name="current_stock"/>
+                <field name="weighted_velocity"/>
+                <field name="days_until_stockout"/>
+                <field name="stockout_risk"/>
+                <field name="recommended_restock_qty"/>
+                <field name="is_overstock"/>
+                <progressbar field="stockout_risk" 
+                             colors='{"critical": "danger", "high": "warning", "medium": "info", "low": "muted", "none": "success"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <!-- Header with product and risk badge -->
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="text-truncate" style="max-width: 150px;">
+                                    <strong><field name="product_sku"/></strong>
+                                </div>
+                                <span class="badge" t-att-class="{
+                                    'text-bg-danger': record.stockout_risk.raw_value == 'critical',
+                                    'text-bg-warning': record.stockout_risk.raw_value == 'high',
+                                    'text-bg-info': record.stockout_risk.raw_value == 'medium',
+                                    'text-bg-secondary': record.stockout_risk.raw_value == 'low',
+                                    'text-bg-success': record.stockout_risk.raw_value == 'none'
+                                }">
+                                    <field name="stockout_risk"/>
+                                </span>
+                            </div>
+                            
+                            <!-- Product name -->
+                            <div class="text-muted small mb-2 text-truncate">
+                                <field name="product_id"/>
+                            </div>
+                            
+                            <!-- Key metrics row -->
+                            <div class="row g-0 text-center mb-2">
+                                <div class="col-4">
+                                    <div class="fw-bold" t-att-class="record.current_stock.raw_value == 0 ? 'text-danger' : ''">
+                                        <field name="current_stock"/>
+                                    </div>
+                                    <div class="text-muted small">Stock</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-bold text-primary">
+                                        <field name="weighted_velocity" digits="[16, 1]"/>
+                                    </div>
+                                    <div class="text-muted small">Units/Day</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="fw-bold" t-att-class="{
+                                        'text-danger': record.days_until_stockout.raw_value &lt; 14,
+                                        'text-warning': record.days_until_stockout.raw_value &lt; 30,
+                                        'text-success': record.days_until_stockout.raw_value >= 30
+                                    }">
+                                        <field name="days_until_stockout"/>
+                                    </div>
+                                    <div class="text-muted small">Days Left</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Restock recommendation -->
+                            <div class="small" t-if="record.recommended_restock_qty.raw_value > 0">
+                                <span class="text-primary">
+                                    <i class="fa fa-truck"/> Restock: <strong><field name="recommended_restock_qty"/></strong> units
+                                </span>
+                            </div>
+                            
+                            <!-- Overstock indicator -->
+                            <div class="small text-info" t-if="record.is_overstock.raw_value">
+                                <i class="fa fa-archive"/> Overstock detected
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Forecast Graph View -->
+    <record id="amazon_inventory_forecast_view_graph" model="ir.ui.view">
+        <field name="name">amazon.inventory.forecast.graph</field>
+        <field name="model">amazon.inventory.forecast</field>
+        <field name="arch" type="xml">
+            <graph string="Forecast Analysis" type="bar" sample="1">
+                <field name="stockout_risk" type="row"/>
+                <field name="current_stock" type="measure"/>
+                <field name="forecasted_demand_30d" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Forecast Pivot View -->
+    <record id="amazon_inventory_forecast_view_pivot" model="ir.ui.view">
+        <field name="name">amazon.inventory.forecast.pivot</field>
+        <field name="model">amazon.inventory.forecast</field>
+        <field name="arch" type="xml">
+            <pivot string="Forecast Analysis" sample="1">
+                <field name="marketplace_id" type="row"/>
+                <field name="stockout_risk" type="col"/>
+                <field name="current_stock" type="measure"/>
+                <field name="weighted_velocity" type="measure"/>
+                <field name="forecasted_demand_30d" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Forecast Search View -->
+    <record id="amazon_inventory_forecast_view_search" model="ir.ui.view">
+        <field name="name">amazon.inventory.forecast.search</field>
+        <field name="model">amazon.inventory.forecast</field>
+        <field name="arch" type="xml">
+            <search string="Search Forecasts">
+                <field name="product_id"/>
+                <field name="product_sku"/>
+                <field name="marketplace_id"/>
+                <field name="account_id"/>
+                <separator/>
+                <filter name="filter_critical" string="Critical Risk" 
+                        domain="[('stockout_risk', '=', 'critical')]"/>
+                <filter name="filter_high" string="High Risk" 
+                        domain="[('stockout_risk', '=', 'high')]"/>
+                <filter name="filter_medium" string="Medium Risk" 
+                        domain="[('stockout_risk', '=', 'medium')]"/>
+                <filter name="filter_needs_restock" string="Needs Restock" 
+                        domain="[('recommended_restock_qty', '>', 0)]"/>
+                <separator/>
+                <filter name="filter_overstock" string="Overstock" 
+                        domain="[('is_overstock', '=', True)]"/>
+                <filter name="filter_trending_up" string="Trending Up" 
+                        domain="[('velocity_trend', '=', 'increasing')]"/>
+                <filter name="filter_trending_down" string="Trending Down" 
+                        domain="[('velocity_trend', '=', 'decreasing')]"/>
+                <separator/>
+                <filter name="filter_high_confidence" string="High Confidence" 
+                        domain="[('forecast_confidence', '=', 'high')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_stockout_risk" string="Stockout Risk" 
+                            context="{'group_by': 'stockout_risk'}"/>
+                    <filter name="group_marketplace" string="Marketplace" 
+                            context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_account" string="Account" 
+                            context="{'group_by': 'account_id'}"/>
+                    <filter name="group_trend" string="Velocity Trend" 
+                            context="{'group_by': 'velocity_trend'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Forecast Actions -->
+    <record id="amazon_inventory_forecast_action" model="ir.actions.act_window">
+        <field name="name">Inventory Forecasts</field>
+        <field name="res_model">amazon.inventory.forecast</field>
+        <field name="view_mode">kanban,tree,form,graph,pivot</field>
+        <field name="search_view_id" ref="amazon_inventory_forecast_view_search"/>
+        <field name="context">{'search_default_filter_needs_restock': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No forecasts yet
+            </p>
+            <p>
+                Inventory forecasts are automatically generated for products with FBA inventory.
+                Run the forecast cron job or sync inventory to create forecasts.
+            </p>
+        </field>
+    </record>
+
+    <record id="amazon_inventory_forecast_action_critical" model="ir.actions.act_window">
+        <field name="name">Critical Stock Alerts</field>
+        <field name="res_model">amazon.inventory.forecast</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="search_view_id" ref="amazon_inventory_forecast_view_search"/>
+        <field name="domain">[('stockout_risk', 'in', ['critical', 'high'])]</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- RESTOCK SUGGESTION VIEWS                                      -->
+    <!-- ============================================================ -->
+
+    <!-- Suggestion Tree View -->
+    <record id="amazon_restock_suggestion_view_tree" model="ir.ui.view">
+        <field name="name">amazon.restock.suggestion.tree</field>
+        <field name="model">amazon.restock.suggestion</field>
+        <field name="arch" type="xml">
+            <list string="Restock Suggestions"
+                  decoration-danger="priority == 'critical'"
+                  decoration-warning="priority == 'high'"
+                  decoration-muted="status in ('dismissed', 'expired')"
+                  sample="1">
+                <field name="suggestion_type" widget="badge"
+                       decoration-info="suggestion_type == 'restock'"
+                       decoration-warning="suggestion_type == 'removal'"
+                       decoration-primary="suggestion_type == 'price_adjust'"/>
+                <field name="priority" widget="badge"
+                       decoration-danger="priority == 'critical'"
+                       decoration-warning="priority == 'high'"
+                       decoration-info="priority == 'medium'"/>
+                <field name="product_sku"/>
+                <field name="product_name" optional="show"/>
+                <field name="marketplace_id"/>
+                <field name="current_stock"/>
+                <field name="recommended_qty"/>
+                <field name="estimated_stockout_date" optional="show"/>
+                <field name="suggested_action_date"/>
+                <field name="days_until_action" decoration-danger="days_until_action &lt; 0" decoration-warning="days_until_action &lt; 7"/>
+                <field name="status" widget="badge"
+                       decoration-info="status == 'pending'"
+                       decoration-success="status in ('accepted', 'completed')"
+                       decoration-muted="status in ('dismissed', 'expired')"/>
+                <button name="action_accept" string="Accept" type="object" 
+                        class="btn-sm btn-success" invisible="status != 'pending'"/>
+                <button name="action_dismiss" string="Dismiss" type="object" 
+                        class="btn-sm btn-secondary" invisible="status != 'pending'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Suggestion Form View -->
+    <record id="amazon_restock_suggestion_view_form" model="ir.ui.view">
+        <field name="name">amazon.restock.suggestion.form</field>
+        <field name="model">amazon.restock.suggestion</field>
+        <field name="arch" type="xml">
+            <form string="Restock Suggestion">
+                <header>
+                    <button name="action_accept" string="Accept &amp; Create Shipment" 
+                            type="object" class="btn-primary"
+                            invisible="status != 'pending' or suggestion_type != 'restock'"/>
+                    <button name="action_accept" string="Accept" 
+                            type="object" class="btn-primary"
+                            invisible="status != 'pending' or suggestion_type == 'restock'"/>
+                    <button name="action_dismiss" string="Dismiss" 
+                            type="object" class="btn-secondary"
+                            invisible="status != 'pending'"/>
+                    <button name="action_complete" string="Mark Complete" 
+                            type="object" class="btn-success"
+                            invisible="status != 'accepted'"/>
+                    <button name="action_reopen" string="Reopen" 
+                            type="object" class="btn-secondary"
+                            invisible="status not in ('dismissed', 'expired')"/>
+                    <field name="status" widget="statusbar" 
+                           statusbar_visible="pending,accepted,completed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_forecast" type="object"
+                                class="oe_stat_button" icon="fa-line-chart"
+                                string="View Forecast"
+                                invisible="not forecast_id"/>
+                        <button name="action_view_shipment" type="object"
+                                class="oe_stat_button" icon="fa-truck"
+                                string="View Shipment"
+                                invisible="not fba_shipment_id"/>
+                    </div>
+                    
+                    <widget name="web_ribbon" title="CRITICAL" bg_color="text-bg-danger" 
+                            invisible="priority != 'critical'"/>
+                    <widget name="web_ribbon" title="HIGH PRIORITY" bg_color="text-bg-warning" 
+                            invisible="priority != 'high'"/>
+                    <widget name="web_ribbon" title="DISMISSED" bg_color="text-bg-secondary" 
+                            invisible="status != 'dismissed'"/>
+                    
+                    <div class="oe_title">
+                        <label for="display_name"/>
+                        <h1>
+                            <field name="display_name"/>
+                        </h1>
+                    </div>
+                    
+                    <group>
+                        <group string="Product">
+                            <field name="product_id"/>
+                            <field name="product_sku"/>
+                            <field name="marketplace_id"/>
+                            <field name="account_id"/>
+                        </group>
+                        <group string="Suggestion">
+                            <field name="suggestion_type"/>
+                            <field name="priority"/>
+                            <field name="suggested_action_date"/>
+                            <field name="days_until_action"/>
+                            <field name="is_overdue" invisible="1"/>
+                        </group>
+                    </group>
+                    
+                    <group>
+                        <group string="Inventory Data">
+                            <field name="current_stock"/>
+                            <field name="current_inbound"/>
+                            <field name="forecasted_demand"/>
+                        </group>
+                        <group string="Recommendation">
+                            <field name="recommended_qty" class="fw-bold text-primary"/>
+                            <field name="estimated_stockout_date"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Financial Impact" invisible="not potential_lost_sales and not estimated_cost and not storage_savings">
+                        <group>
+                            <field name="potential_lost_sales"/>
+                            <field name="estimated_cost"/>
+                        </group>
+                        <group>
+                            <field name="storage_savings"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Reason">
+                        <field name="reason" nolabel="1" colspan="2"/>
+                    </group>
+                    
+                    <group string="Status" invisible="status == 'pending'">
+                        <group>
+                            <field name="status_changed_date"/>
+                            <field name="status_changed_by"/>
+                        </group>
+                        <group invisible="status != 'dismissed'">
+                            <field name="dismissed_reason"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Suggestion Kanban View -->
+    <record id="amazon_restock_suggestion_view_kanban" model="ir.ui.view">
+        <field name="name">amazon.restock.suggestion.kanban</field>
+        <field name="model">amazon.restock.suggestion</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="status" class="o_kanban_mobile" sample="1" 
+                    on_create="quick_create">
+                <field name="product_id"/>
+                <field name="product_sku"/>
+                <field name="suggestion_type"/>
+                <field name="priority"/>
+                <field name="status"/>
+                <field name="recommended_qty"/>
+                <field name="suggested_action_date"/>
+                <field name="days_until_action"/>
+                <progressbar field="priority" 
+                             colors='{"critical": "danger", "high": "warning", "medium": "info", "low": "muted"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click" 
+                             t-att-class="{'border-danger border-2': record.priority.raw_value == 'critical'}">
+                            <!-- Header -->
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge" t-att-class="{
+                                    'text-bg-info': record.suggestion_type.raw_value == 'restock',
+                                    'text-bg-warning': record.suggestion_type.raw_value == 'removal',
+                                    'text-bg-primary': record.suggestion_type.raw_value == 'price_adjust',
+                                    'text-bg-secondary': record.suggestion_type.raw_value == 'promotion'
+                                }">
+                                    <field name="suggestion_type"/>
+                                </span>
+                                <span class="badge" t-att-class="{
+                                    'text-bg-danger': record.priority.raw_value == 'critical',
+                                    'text-bg-warning': record.priority.raw_value == 'high',
+                                    'text-bg-info': record.priority.raw_value == 'medium',
+                                    'text-bg-secondary': record.priority.raw_value == 'low'
+                                }">
+                                    <field name="priority"/>
+                                </span>
+                            </div>
+                            
+                            <!-- Product -->
+                            <div class="mb-2">
+                                <strong><field name="product_sku"/></strong>
+                                <div class="text-muted small text-truncate">
+                                    <field name="product_id"/>
+                                </div>
+                            </div>
+                            
+                            <!-- Recommendation -->
+                            <div class="mb-2">
+                                <span class="text-primary fw-bold">
+                                    <t t-if="record.suggestion_type.raw_value == 'restock'">
+                                        <i class="fa fa-truck"/> Order <field name="recommended_qty"/> units
+                                    </t>
+                                    <t t-elif="record.suggestion_type.raw_value == 'removal'">
+                                        <i class="fa fa-archive"/> Remove <field name="recommended_qty"/> units
+                                    </t>
+                                </span>
+                            </div>
+                            
+                            <!-- Action date -->
+                            <div class="small" t-att-class="{'text-danger fw-bold': record.days_until_action.raw_value &lt; 0}">
+                                <i class="fa fa-calendar"/>
+                                <t t-if="record.days_until_action.raw_value &lt; 0">
+                                    <strong>OVERDUE</strong> by <field name="days_until_action"/> days
+                                </t>
+                                <t t-elif="record.days_until_action.raw_value == 0">
+                                    Action needed <strong>TODAY</strong>
+                                </t>
+                                <t t-else="">
+                                    <field name="days_until_action"/> days until action
+                                </t>
+                            </div>
+                            
+                            <!-- Action buttons -->
+                            <div class="mt-2 pt-2 border-top" t-if="record.status.raw_value == 'pending'">
+                                <button name="action_accept" type="object" 
+                                        class="btn btn-sm btn-success me-1">
+                                    <i class="fa fa-check"/> Accept
+                                </button>
+                                <button name="action_dismiss" type="object" 
+                                        class="btn btn-sm btn-outline-secondary">
+                                    <i class="fa fa-times"/> Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Suggestion Search View -->
+    <record id="amazon_restock_suggestion_view_search" model="ir.ui.view">
+        <field name="name">amazon.restock.suggestion.search</field>
+        <field name="model">amazon.restock.suggestion</field>
+        <field name="arch" type="xml">
+            <search string="Search Suggestions">
+                <field name="product_id"/>
+                <field name="product_sku"/>
+                <field name="marketplace_id"/>
+                <field name="account_id"/>
+                <separator/>
+                <filter name="filter_pending" string="Pending" 
+                        domain="[('status', '=', 'pending')]"/>
+                <filter name="filter_accepted" string="Accepted" 
+                        domain="[('status', '=', 'accepted')]"/>
+                <filter name="filter_overdue" string="Overdue" 
+                        domain="[('suggested_action_date', '&lt;', context_today().strftime('%Y-%m-%d')), ('status', '=', 'pending')]"/>
+                <separator/>
+                <filter name="filter_critical" string="Critical" 
+                        domain="[('priority', '=', 'critical')]"/>
+                <filter name="filter_high" string="High Priority" 
+                        domain="[('priority', '=', 'high')]"/>
+                <separator/>
+                <filter name="filter_restock" string="Restock" 
+                        domain="[('suggestion_type', '=', 'restock')]"/>
+                <filter name="filter_removal" string="Removal" 
+                        domain="[('suggestion_type', '=', 'removal')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_status" string="Status" 
+                            context="{'group_by': 'status'}"/>
+                    <filter name="group_priority" string="Priority" 
+                            context="{'group_by': 'priority'}"/>
+                    <filter name="group_type" string="Type" 
+                            context="{'group_by': 'suggestion_type'}"/>
+                    <filter name="group_marketplace" string="Marketplace" 
+                            context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_action_date" string="Action Date" 
+                            context="{'group_by': 'suggested_action_date:week'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Suggestion Actions -->
+    <record id="amazon_restock_suggestion_action" model="ir.actions.act_window">
+        <field name="name">Restock Suggestions</field>
+        <field name="res_model">amazon.restock.suggestion</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="amazon_restock_suggestion_view_search"/>
+        <field name="context">{'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No restock suggestions
+            </p>
+            <p>
+                Restock suggestions are automatically generated based on inventory forecasts.
+                When products are running low or overstocked, you'll see recommendations here.
+            </p>
+        </field>
+    </record>
+
+    <record id="amazon_restock_suggestion_action_urgent" model="ir.actions.act_window">
+        <field name="name">Urgent Restock</field>
+        <field name="res_model">amazon.restock.suggestion</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="search_view_id" ref="amazon_restock_suggestion_view_search"/>
+        <field name="domain">[('status', '=', 'pending'), ('priority', 'in', ['critical', 'high'])]</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- DEMAND HISTORY VIEWS                                          -->
+    <!-- ============================================================ -->
+
+    <!-- Demand History Tree View -->
+    <record id="amazon_demand_history_view_tree" model="ir.ui.view">
+        <field name="name">amazon.demand.history.tree</field>
+        <field name="model">amazon.demand.history</field>
+        <field name="arch" type="xml">
+            <list string="Demand History" default_order="date desc" sample="1">
+                <field name="date"/>
+                <field name="product_id"/>
+                <field name="marketplace_id"/>
+                <field name="units_sold"/>
+                <field name="units_returned" optional="show"/>
+                <field name="net_units"/>
+                <field name="revenue"/>
+                <field name="average_selling_price" optional="hide"/>
+                <field name="inventory_available" optional="show"/>
+                <field name="is_stockout" widget="boolean"/>
+                <field name="data_source" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Demand History Graph View -->
+    <record id="amazon_demand_history_view_graph" model="ir.ui.view">
+        <field name="name">amazon.demand.history.graph</field>
+        <field name="model">amazon.demand.history</field>
+        <field name="arch" type="xml">
+            <graph string="Sales History" type="line" sample="1">
+                <field name="date" type="row" interval="day"/>
+                <field name="units_sold" type="measure"/>
+                <field name="revenue" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Demand History Pivot View -->
+    <record id="amazon_demand_history_view_pivot" model="ir.ui.view">
+        <field name="name">amazon.demand.history.pivot</field>
+        <field name="model">amazon.demand.history</field>
+        <field name="arch" type="xml">
+            <pivot string="Sales Analysis" sample="1">
+                <field name="date" type="row" interval="week"/>
+                <field name="marketplace_id" type="col"/>
+                <field name="units_sold" type="measure"/>
+                <field name="revenue" type="measure"/>
+                <field name="net_units" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Demand History Search View -->
+    <record id="amazon_demand_history_view_search" model="ir.ui.view">
+        <field name="name">amazon.demand.history.search</field>
+        <field name="model">amazon.demand.history</field>
+        <field name="arch" type="xml">
+            <search string="Search Demand History">
+                <field name="product_id"/>
+                <field name="marketplace_id"/>
+                <field name="account_id"/>
+                <field name="date"/>
+                <separator/>
+                <filter name="filter_last_7" string="Last 7 Days" 
+                        domain="[('date', '>=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_last_30" string="Last 30 Days" 
+                        domain="[('date', '>=', (context_today() - datetime.timedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_last_90" string="Last 90 Days" 
+                        domain="[('date', '>=', (context_today() - datetime.timedelta(days=90)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter name="filter_stockout" string="Stockout Days" 
+                        domain="[('is_stockout', '=', True)]"/>
+                <filter name="filter_has_sales" string="Has Sales" 
+                        domain="[('units_sold', '>', 0)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_product" string="Product" 
+                            context="{'group_by': 'product_id'}"/>
+                    <filter name="group_marketplace" string="Marketplace" 
+                            context="{'group_by': 'marketplace_id'}"/>
+                    <filter name="group_week" string="Week" 
+                            context="{'group_by': 'date:week'}"/>
+                    <filter name="group_month" string="Month" 
+                            context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Demand History Action -->
+    <record id="amazon_demand_history_action" model="ir.actions.act_window">
+        <field name="name">Demand History</field>
+        <field name="res_model">amazon.demand.history</field>
+        <field name="view_mode">graph,tree,pivot</field>
+        <field name="search_view_id" ref="amazon_demand_history_view_search"/>
+        <field name="context">{'search_default_filter_last_30': 1}</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- DISMISS WIZARD VIEW                                           -->
+    <!-- ============================================================ -->
+
+    <record id="amazon_restock_dismiss_wizard_view_form" model="ir.ui.view">
+        <field name="name">amazon.restock.dismiss.wizard.form</field>
+        <field name="model">amazon.restock.dismiss.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Dismiss Suggestion">
+                <group>
+                    <field name="suggestion_ids" widget="many2many_tags" readonly="1"/>
+                    <field name="reason"/>
+                    <field name="notes" placeholder="Additional notes..." 
+                           invisible="reason != 'other'"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Dismiss" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Sale Order Inherited Views                                    -->
+    <!-- ============================================================ -->
+
+    <!-- Inherit Sale Order Form View -->
+    <record id="sale_order_view_form_amazon" model="ir.ui.view">
+        <field name="name">sale.order.form.amazon</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- Add Amazon button box -->
+            <div name="button_box" position="inside">
+                <button name="action_view_amazon_order" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-amazon"
+                        invisible="not amazon_order_id">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Amazon Order</span>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Add Amazon ribbon for Amazon orders -->
+            <sheet position="inside">
+                <widget name="web_ribbon" title="Amazon" bg_color="text-bg-warning" invisible="not is_amazon_order"/>
+            </sheet>
+
+            <!-- Add Amazon info group after partner -->
+            <field name="partner_id" position="after">
+                <field name="is_amazon_order" invisible="1"/>
+                <field name="amazon_order_ref" invisible="not is_amazon_order" readonly="1"/>
+            </field>
+
+            <!-- Add Amazon tab in the notebook -->
+            <page name="other_information" position="after">
+                <page string="Amazon" name="amazon" invisible="not is_amazon_order">
+                    <group>
+                        <group string="Amazon Order Info">
+                            <field name="amazon_order_id" readonly="1"/>
+                            <field name="amazon_order_ref" readonly="1"/>
+                            <field name="amazon_marketplace_id" readonly="1"/>
+                            <field name="amazon_account_id" readonly="1"/>
+                        </group>
+                        <group string="Fulfillment">
+                            <field name="amazon_fulfillment_channel" readonly="1"/>
+                            <field name="amazon_order_status" readonly="1"/>
+                            <field name="amazon_purchase_date" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Buyer Info">
+                            <field name="amazon_buyer_name" readonly="1"/>
+                            <field name="amazon_buyer_email" readonly="1"/>
+                            <field name="amazon_is_business_order" readonly="1"/>
+                            <field name="amazon_is_prime" readonly="1"/>
+                        </group>
+                        <group string="Shipping">
+                            <field name="amazon_ship_service_level" readonly="1"/>
+                            <field name="amazon_tracking_number" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <!-- Inherit Sale Order Tree View -->
+    <record id="sale_order_view_tree_amazon" model="ir.ui.view">
+        <field name="name">sale.order.tree.amazon</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_tree"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="amazon_order_ref" string="Amazon Ref" optional="hide"/>
+            </field>
+            <field name="state" position="before">
+                <field name="amazon_fulfillment_channel" string="Channel" optional="hide" widget="badge"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Inherit Sale Order Search View -->
+    <record id="sale_order_view_search_amazon" model="ir.ui.view">
+        <field name="name">sale.order.search.amazon</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.sale_order_view_search_inherit_quotation"/>
+        <field name="arch" type="xml">
+            <filter name="my_sale_orders_filter" position="after">
+                <separator/>
+                <filter name="filter_amazon" string="Amazon Orders" domain="[('is_amazon_order', '=', True)]"/>
+                <filter name="filter_amazon_fba" string="Amazon FBA" domain="[('amazon_fulfillment_channel', '=', 'FBA')]"/>
+                <filter name="filter_amazon_fbm" string="Amazon FBM" domain="[('amazon_fulfillment_channel', '=', 'FBM')]"/>
+            </filter>
+            <filter name="filter_create_date" position="after">
+                <separator/>
+                <filter name="group_amazon_marketplace" string="Amazon Marketplace" context="{'group_by': 'amazon_marketplace_id'}"/>
+                <filter name="group_amazon_channel" string="Fulfillment Channel" context="{'group_by': 'amazon_fulfillment_channel'}"/>
+            </filter>
+            <field name="name" position="after">
+                <field name="amazon_order_ref"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Sale Order Line Inherited Views                               -->
+    <!-- ============================================================ -->
+
+    <!-- Inherit Sale Order Line Tree View -->
+    <record id="sale_order_line_view_tree_amazon" model="ir.ui.view">
+        <field name="name">sale.order.line.tree.amazon</field>
+        <field name="model">sale.order.line</field>
+        <field name="inherit_id" ref="sale.view_order_line_tree"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="amazon_order_item_id" string="Amazon Item ID" optional="hide"/>
+                <field name="amazon_asin" string="ASIN" optional="hide"/>
+                <field name="amazon_sku" string="SKU" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Actions for Amazon Sale Orders                                -->
+    <!-- ============================================================ -->
+
+    <!-- Action: Amazon Orders -->
+    <record id="sale_order_action_amazon" model="ir.actions.act_window">
+        <field name="name">Amazon Sale Orders</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">tree,form,kanban,calendar,pivot,graph</field>
+        <field name="domain">[('is_amazon_order', '=', True)]</field>
+        <field name="context">{'default_is_amazon_order': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Amazon orders yet
+            </p>
+            <p>
+                Amazon orders will appear here once they are synced and 
+                converted to Odoo sale orders.
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: Pending Amazon Shipments (FBM) -->
+    <record id="sale_order_action_amazon_pending_shipment" model="ir.actions.act_window">
+        <field name="name">Pending Amazon Shipments</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">tree,form,kanban</field>
+        <field name="domain">[('is_amazon_order', '=', True), ('amazon_fulfillment_channel', '=', 'FBM'), ('amazon_order_status', '=', 'Unshipped')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No pending shipments
+            </p>
+            <p>
+                FBM orders waiting to be shipped will appear here.
+            </p>
+        </field>
+    </record>
+
+    <!-- Server action to confirm Amazon shipment -->
+    <record id="action_confirm_amazon_shipment" model="ir.actions.server">
+        <field name="name">Confirm Amazon Shipment</field>
+        <field name="model_id" ref="sale.model_sale_order"/>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+if records.filtered(lambda r: r.is_amazon_order and r.amazon_fulfillment_channel == 'FBM'):
+    action = records.action_confirm_amazon_shipment()
+        </field>
+    </record>
+
+</odoo>
