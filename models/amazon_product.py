@@ -1,8 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import json
 import logging
+import traceback
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from ..services.sp_api_client import OdooSPAPIClient, SPAPIError
+from ..services.sp_api_feeds import SPAPIFeeds
 from ..services.sp_api_products import SPAPIProducts
 
 _logger = logging.getLogger(__name__)
@@ -674,13 +678,131 @@ class AmazonProductListing(models.Model):
 
     def action_push_to_amazon(self):
         """Push listing data to Amazon."""
+        # 1. Validation and Grouping
+        records_by_account = {}
         for record in self:
             if record.state == 'draft':
                 raise UserError(
-                    _('Cannot push draft listings. Set to pending first.')
+                    _('Cannot push draft listings. Set to pending first: %s') % record.display_name
                 )
-            _logger.info('Pushing listing %s to Amazon', record.display_name)
-            # TODO: Implement via sp_api_feeds service
+
+            key = (record.account_id, record.marketplace_id)
+            if key not in records_by_account:
+                records_by_account[key] = self.env['amazon.product.listing']
+            records_by_account[key] |= record
+
+        # 2. Process per Account/Marketplace
+        for (account, marketplace), records in records_by_account.items():
+            _logger.info('Pushing %d listings to Amazon for account %s', len(records), account.name)
+
+            # Create Sync Log
+            log = self.env['amazon.sync.log'].create_log(
+                account_id=account.id,
+                operation='product_export',
+                marketplace_id=marketplace.id,
+                model_name=self._name,
+                record_ids=','.join(map(str, records.ids)),
+                record_count=len(records),
+            )
+
+            try:
+                # Initialize Client and Service
+                client = OdooSPAPIClient.from_credential_record(account)
+                feeds_api = SPAPIFeeds(client)
+
+                # Build Messages
+                messages = []
+                for i, record in enumerate(records, 1):
+                    lang = 'en'
+                    if marketplace.lang_id:
+                        if marketplace.lang_id.iso_code:
+                            lang = marketplace.lang_id.iso_code[:2]
+                        elif marketplace.lang_id.code:
+                            lang = marketplace.lang_id.code[:2]
+
+                    attributes = {
+                        'item_name': [{
+                            'value': record.title or record.product_tmpl_id.name,
+                            'language_tag': lang,
+                            'marketplace_id': marketplace.marketplace_id
+                        }],
+                        'product_description': [{
+                            'value': record.description or '',
+                            'language_tag': lang,
+                            'marketplace_id': marketplace.marketplace_id
+                        }],
+                    }
+
+                    if record.brand:
+                        attributes['brand'] = [{
+                            'value': record.brand,
+                            'language_tag': lang,
+                            'marketplace_id': marketplace.marketplace_id
+                        }]
+
+                    if record.manufacturer:
+                        attributes['manufacturer'] = [{
+                            'value': record.manufacturer,
+                            'language_tag': lang,
+                            'marketplace_id': marketplace.marketplace_id
+                        }]
+
+                    bullet_points = record.get_bullet_points()
+                    if bullet_points:
+                        attributes['bullet_point'] = [{
+                            'value': bp,
+                            'language_tag': lang,
+                            'marketplace_id': marketplace.marketplace_id
+                        } for bp in bullet_points]
+
+                    if record.main_image_url:
+                        attributes['main_product_image_locator'] = [{
+                            'media_location': record.main_image_url,
+                            'marketplace_id': marketplace.marketplace_id
+                        }]
+
+                    # Use item_type_keyword as product type if available, otherwise generic
+                    product_type = record.item_type_keyword or 'PRODUCT'
+
+                    message = feeds_api.build_listing_message(
+                        message_id=i,
+                        sku=record.sku,
+                        operation_type='UPDATE',
+                        product_type=product_type,
+                        attributes=attributes,
+                    )
+                    messages.append(message)
+
+                # Submit Feed
+                if messages:
+                    # Don't wait for completion to avoid blocking
+                    result = feeds_api.submit_json_listings_feed(
+                        messages=messages,
+                        wait_for_completion=False
+                    )
+
+                    feed_id = result.get('feedId')
+                    log.complete(
+                        status='success',
+                        message=_('Feed submitted successfully. Feed ID: %s') % feed_id,
+                        response_data=json.dumps(result, default=str)
+                    )
+
+                    # Update records
+                    records.write({
+                        'last_sync_date': fields.Datetime.now(),
+                        'listing_issues': False, # Clear previous issues
+                    })
+                else:
+                    log.complete(status='warning', message=_('No valid messages generated.'))
+
+            except SPAPIError as e:
+                log.log_error(message=str(e))
+                _logger.error("Failed to push listings to Amazon: %s", str(e))
+            except Exception as e:
+                log.log_error(message=str(e), traceback=traceback.format_exc())
+                _logger.error("Unexpected error pushing listings to Amazon: %s", str(e), exc_info=True)
+                raise UserError(_('An error occurred while pushing to Amazon: %s') % str(e))
 
     def action_sync_price(self):
         """Sync pricing data from Amazon."""
