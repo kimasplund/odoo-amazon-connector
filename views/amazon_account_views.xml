@@ -127,7 +127,7 @@
                             </group>
                             <group>
                                 <group string="Environment">
-                                    <field name="sandbox_mode"/>
+                                    <field name="environment"/>
                                     <field name="api_region"/>
                                 </group>
                             </group>
@@ -278,7 +278,7 @@
                 <filter name="filter_error" string="Error" domain="[('state', '=', 'error')]"/>
                 <separator/>
                 <filter name="filter_fba" string="FBA Enabled" domain="[('fba_enabled', '=', True)]"/>
-                <filter name="filter_sandbox" string="Sandbox Mode" domain="[('sandbox_mode', '=', True)]"/>
+                <filter name="filter_sandbox" string="Sandbox Mode" domain="[('environment', '=', 'sandbox')]"/>
                 <group expand="0" string="Group By">
                     <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
                     <filter name="group_company" string="Company" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
