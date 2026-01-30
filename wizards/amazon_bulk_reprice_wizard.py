@@ -682,6 +682,7 @@ class AmazonPricingRecommendationDismissWizard(models.TransientModel):
     
     recommendation_ids = fields.Many2many(
         comodel_name='amazon.pricing.recommendation',
+        relation='amz_price_rec_dismiss_wiz_rel',
         string='Recommendations',
     )
     dismiss_reason = fields.Selection(

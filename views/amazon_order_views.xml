@@ -10,9 +10,9 @@
         <field name="model">amazon.order</field>
         <field name="arch" type="xml">
             <list string="Amazon Orders" 
-                  decoration-info="state == 'pending'"
-                  decoration-success="state == 'shipped'"
-                  decoration-muted="state == 'canceled'"
+                  decoration-info="order_status == 'pending'"
+                  decoration-success="order_status == 'shipped'"
+                  decoration-muted="order_status == 'canceled'"
                   sample="1">
                 <field name="amazon_order_id"/>
                 <field name="purchase_date"/>
@@ -22,12 +22,12 @@
                 <field name="fulfillment_channel" widget="badge"/>
                 <field name="order_total" widget="monetary" sum="Total"/>
                 <field name="currency_id" column_invisible="1"/>
-                <field name="items_count"/>
-                <field name="state" widget="badge"
-                       decoration-info="state == 'pending'"
-                       decoration-warning="state == 'unshipped'"
-                       decoration-success="state == 'shipped'"
-                       decoration-muted="state == 'canceled'"/>
+                <field name="order_line_count"/>
+                <field name="order_status" widget="badge"
+                       decoration-info="order_status == 'pending'"
+                       decoration-warning="order_status == 'unshipped'"
+                       decoration-success="order_status == 'shipped'"
+                       decoration-muted="order_status == 'canceled'"/>
                 <field name="is_business_order" widget="boolean" optional="hide"/>
                 <field name="is_prime" widget="boolean" optional="hide"/>
             </list>
@@ -45,27 +45,20 @@
                             string="Create Sale Order" 
                             type="object" 
                             class="btn-primary"
-                            invisible="sale_order_id or state == 'canceled'"
+                            invisible="sale_order_id or order_status == 'canceled'"
                             icon="fa-file-text-o"/>
                     <button name="action_confirm_shipment" 
                             string="Confirm Shipment" 
                             type="object" 
                             class="btn-primary"
-                            invisible="state != 'unshipped' or fulfillment_channel == 'FBA'"
+                            invisible="order_status != 'unshipped' or fulfillment_channel == 'AFN'"
                             icon="fa-truck"/>
-                    <button name="action_sync_order" 
+                    <button name="action_sync_from_amazon" 
                             string="Sync from Amazon" 
                             type="object" 
                             class="btn-secondary"
                             icon="fa-refresh"/>
-                    <button name="action_cancel_order" 
-                            string="Cancel" 
-                            type="object" 
-                            class="btn-secondary"
-                            invisible="state in ['shipped', 'canceled']"
-                            confirm="Are you sure you want to cancel this order?"
-                            icon="fa-times"/>
-                    <field name="state" widget="statusbar" statusbar_visible="pending,unshipped,shipped"/>
+                    <field name="order_status" widget="statusbar" statusbar_visible="pending,unshipped,shipped"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -79,20 +72,6 @@
                                 <span class="o_stat_value"><field name="sale_order_id" readonly="1"/></span>
                             </div>
                         </button>
-                        <button name="action_view_picking" 
-                                type="object" 
-                                class="oe_stat_button" 
-                                icon="fa-truck"
-                                invisible="not picking_ids">
-                            <field name="picking_count" widget="statinfo" string="Transfers"/>
-                        </button>
-                        <button name="action_view_invoice" 
-                                type="object" 
-                                class="oe_stat_button" 
-                                icon="fa-money"
-                                invisible="not invoice_ids">
-                            <field name="invoice_count" widget="statinfo" string="Invoices"/>
-                        </button>
                         <button name="action_view_returns" 
                                 type="object" 
                                 class="oe_stat_button" 
@@ -101,7 +80,7 @@
                             <field name="return_count" widget="statinfo" string="Returns"/>
                         </button>
                     </div>
-                    <widget name="web_ribbon" title="Canceled" bg_color="text-bg-danger" invisible="state != 'canceled'"/>
+                    <widget name="web_ribbon" title="Canceled" bg_color="text-bg-danger" invisible="order_status != 'canceled'"/>
                     <widget name="web_ribbon" title="Prime" bg_color="text-bg-primary" invisible="not is_prime"/>
                     <div class="oe_title">
                         <label for="amazon_order_id" string="Amazon Order"/>
@@ -116,14 +95,14 @@
                             <field name="marketplace_id"/>
                             <field name="account_id"/>
                             <field name="fulfillment_channel"/>
-                            <field name="order_type"/>
+                            <field name="sales_channel"/>
                         </group>
                         <group string="Amounts">
                             <field name="order_total" widget="monetary"/>
                             <field name="currency_id" invisible="1"/>
-                            <field name="shipping_price" widget="monetary"/>
-                            <field name="tax_amount" widget="monetary"/>
-                            <field name="items_count"/>
+                            <field name="amount_shipping" widget="monetary"/>
+                            <field name="amount_tax" widget="monetary"/>
+                            <field name="order_line_count"/>
                         </group>
                     </group>
                     <notebook>
@@ -131,19 +110,19 @@
                             <field name="order_line_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="amazon_order_item_id"/>
-                                    <field name="listing_id"/>
+                                    <field name="order_item_id"/>
+                                    <field name="amazon_listing_id"/>
                                     <field name="product_id"/>
-                                    <field name="sku"/>
+                                    <field name="seller_sku"/>
                                     <field name="asin"/>
                                     <field name="title"/>
-                                    <field name="quantity"/>
+                                    <field name="quantity_ordered"/>
                                     <field name="item_price" widget="monetary"/>
                                     <field name="shipping_price" widget="monetary"/>
-                                    <field name="tax_amount" widget="monetary" optional="hide"/>
+                                    <field name="item_tax" widget="monetary" optional="hide"/>
                                     <field name="item_status" widget="badge"
-                                           decoration-success="item_status == 'Shipped'"
-                                           decoration-info="item_status == 'Unshipped'"/>
+                                           decoration-success="item_status == 'shipped'"
+                                           decoration-info="item_status == 'unshipped'"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </list>
                             </field>
@@ -155,14 +134,15 @@
                                     <field name="buyer_email"/>
                                     <field name="partner_id"/>
                                     <field name="is_business_order"/>
-                                    <field name="purchase_order_number" invisible="not is_business_order"/>
+                                    <field name="buyer_tax_registration_id" invisible="not is_business_order"/>
+                                    <field name="buyer_company_legal_name" invisible="not is_business_order"/>
                                 </group>
                                 <group string="Shipping Address">
                                     <field name="ship_name"/>
-                                    <field name="ship_address_1"/>
-                                    <field name="ship_address_2"/>
+                                    <field name="ship_address_line1"/>
+                                    <field name="ship_address_line2"/>
                                     <field name="ship_city"/>
-                                    <field name="ship_state"/>
+                                    <field name="ship_state_or_region"/>
                                     <field name="ship_postal_code"/>
                                     <field name="ship_country_id"/>
                                     <field name="ship_phone"/>
@@ -173,31 +153,25 @@
                             <group>
                                 <group string="Shipping Details">
                                     <field name="ship_service_level"/>
-                                    <field name="ship_service_category"/>
+                                    <field name="shipment_service_level_category"/>
                                     <field name="earliest_ship_date"/>
                                     <field name="latest_ship_date"/>
                                     <field name="earliest_delivery_date"/>
                                     <field name="latest_delivery_date"/>
                                 </group>
-                                <group string="Fulfillment" invisible="fulfillment_channel != 'FBA'">
-                                    <field name="fulfillment_center"/>
-                                    <field name="amazon_shipment_id"/>
+                                <group string="Items Status">
+                                    <field name="number_of_items_shipped"/>
+                                    <field name="number_of_items_unshipped"/>
                                 </group>
-                            </group>
-                            <group string="Tracking Information" invisible="fulfillment_channel == 'FBA'">
-                                <field name="carrier_code"/>
-                                <field name="carrier_name"/>
-                                <field name="tracking_number"/>
-                                <field name="ship_date"/>
                             </group>
                         </page>
                         <page string="Gift Options" name="gift" invisible="not is_gift">
                             <group>
                                 <group>
                                     <field name="is_gift"/>
-                                    <field name="gift_message"/>
-                                    <field name="gift_wrap_type"/>
-                                    <field name="gift_wrap_price" widget="monetary"/>
+                                    <field name="gift_message_text"/>
+                                    <field name="gift_wrap_level"/>
+                                    <field name="amount_gift_wrap" widget="monetary"/>
                                 </group>
                             </group>
                         </page>
@@ -205,8 +179,8 @@
                             <group>
                                 <group string="Order Flags">
                                     <field name="is_prime"/>
-                                    <field name="is_premium"/>
-                                    <field name="is_replacement"/>
+                                    <field name="is_premium_order"/>
+                                    <field name="is_replacement_order"/>
                                     <field name="is_sold_by_ab"/>
                                 </group>
                                 <group string="Payment">
@@ -214,8 +188,10 @@
                                     <field name="payment_method_details"/>
                                 </group>
                             </group>
-                            <group string="Notes">
-                                <field name="notes" nolabel="1" placeholder="Internal notes..."/>
+                            <group string="VAT/Tax">
+                                <field name="is_ioss_order"/>
+                                <field name="ioss_number" invisible="not is_ioss_order"/>
+                                <field name="tax_collection_model"/>
                             </group>
                         </page>
                     </notebook>
@@ -230,18 +206,18 @@
         <field name="name">amazon.order.kanban</field>
         <field name="model">amazon.order</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" sample="1" default_group_by="state">
+            <kanban class="o_kanban_mobile" sample="1" default_group_by="order_status">
                 <field name="amazon_order_id"/>
                 <field name="purchase_date"/>
                 <field name="buyer_name"/>
                 <field name="order_total"/>
                 <field name="currency_id"/>
-                <field name="state"/>
+                <field name="order_status"/>
                 <field name="fulfillment_channel"/>
-                <field name="items_count"/>
+                <field name="order_line_count"/>
                 <field name="is_prime"/>
                 <field name="is_business_order"/>
-                <progressbar field="state" colors='{"pending": "info", "unshipped": "warning", "shipped": "success", "canceled": "danger"}'/>
+                <progressbar field="order_status" colors='{"pending": "info", "unshipped": "warning", "shipped": "success", "canceled": "danger"}'/>
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_global_click">
@@ -253,11 +229,11 @@
                                     <span t-if="record.is_prime.raw_value" class="badge text-bg-primary ms-1">Prime</span>
                                     <span t-if="record.is_business_order.raw_value" class="badge text-bg-secondary ms-1">B2B</span>
                                 </div>
-                                <field name="state" widget="badge"
-                                       decoration-info="state == 'pending'"
-                                       decoration-warning="state == 'unshipped'"
-                                       decoration-success="state == 'shipped'"
-                                       decoration-danger="state == 'canceled'"/>
+                                <field name="order_status" widget="badge"
+                                       decoration-info="order_status == 'pending'"
+                                       decoration-warning="order_status == 'unshipped'"
+                                       decoration-success="order_status == 'shipped'"
+                                       decoration-danger="order_status == 'canceled'"/>
                             </div>
                             <div class="text-muted small mb-1">
                                 <i class="fa fa-calendar-o"/> <field name="purchase_date" widget="date"/>
@@ -269,12 +245,12 @@
                                 <span class="fw-bold fs-5 text-primary">
                                     <field name="order_total" widget="monetary"/>
                                 </span>
-                                <span class="badge" t-att-class="record.fulfillment_channel.raw_value == 'FBA' ? 'text-bg-info' : 'text-bg-secondary'">
+                                <span class="badge" t-att-class="record.fulfillment_channel.raw_value == 'AFN' ? 'text-bg-info' : 'text-bg-secondary'">
                                     <field name="fulfillment_channel"/>
                                 </span>
                             </div>
                             <div class="text-muted small mt-1">
-                                <field name="items_count"/> item(s)
+                                <field name="order_line_count"/> item(s)
                             </div>
                         </div>
                     </t>
@@ -336,13 +312,13 @@
                 <field name="marketplace_id"/>
                 <field name="account_id"/>
                 <separator/>
-                <filter name="filter_pending" string="Pending" domain="[('state', '=', 'pending')]"/>
-                <filter name="filter_unshipped" string="Unshipped" domain="[('state', '=', 'unshipped')]"/>
-                <filter name="filter_shipped" string="Shipped" domain="[('state', '=', 'shipped')]"/>
-                <filter name="filter_canceled" string="Canceled" domain="[('state', '=', 'canceled')]"/>
+                <filter name="filter_pending" string="Pending" domain="[('order_status', '=', 'pending')]"/>
+                <filter name="filter_unshipped" string="Unshipped" domain="[('order_status', '=', 'unshipped')]"/>
+                <filter name="filter_shipped" string="Shipped" domain="[('order_status', '=', 'shipped')]"/>
+                <filter name="filter_canceled" string="Canceled" domain="[('order_status', '=', 'canceled')]"/>
                 <separator/>
-                <filter name="filter_fba" string="FBA" domain="[('fulfillment_channel', '=', 'FBA')]"/>
-                <filter name="filter_fbm" string="FBM" domain="[('fulfillment_channel', '=', 'FBM')]"/>
+                <filter name="filter_fba" string="FBA" domain="[('fulfillment_channel', '=', 'AFN')]"/>
+                <filter name="filter_fbm" string="FBM" domain="[('fulfillment_channel', '=', 'MFN')]"/>
                 <separator/>
                 <filter name="filter_prime" string="Prime" domain="[('is_prime', '=', True)]"/>
                 <filter name="filter_business" string="Business (B2B)" domain="[('is_business_order', '=', True)]"/>
@@ -352,9 +328,9 @@
                 <filter name="filter_week" string="This Week" domain="[('purchase_date', '>=', (context_today() - datetime.timedelta(days=7)))]"/>
                 <filter name="filter_month" string="This Month" domain="[('purchase_date', '>=', (context_today().replace(day=1)))]"/>
                 <separator/>
-                <filter name="filter_no_sale_order" string="No Sale Order" domain="[('sale_order_id', '=', False), ('state', '!=', 'canceled')]"/>
+                <filter name="filter_no_sale_order" string="No Sale Order" domain="[('sale_order_id', '=', False), ('order_status', '!=', 'canceled')]"/>
                 <group expand="0" string="Group By">
-                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'order_status'}"/>
                     <filter name="group_marketplace" string="Marketplace" context="{'group_by': 'marketplace_id'}"/>
                     <filter name="group_account" string="Account" context="{'group_by': 'account_id'}"/>
                     <filter name="group_fulfillment" string="Fulfillment" context="{'group_by': 'fulfillment_channel'}"/>
@@ -389,7 +365,7 @@
         <field name="res_model">amazon.order</field>
         <field name="view_mode">tree,kanban,form</field>
         <field name="search_view_id" ref="amazon_order_view_search"/>
-        <field name="domain">[('state', '=', 'unshipped'), ('fulfillment_channel', '=', 'FBM')]</field>
+        <field name="domain">[('order_status', '=', 'unshipped'), ('fulfillment_channel', '=', 'MFN')]</field>
         <field name="context">{}</field>
     </record>
 
@@ -427,14 +403,14 @@
                 <field name="return_id"/>
                 <field name="order_id"/>
                 <field name="return_date"/>
-                <field name="return_reason"/>
+                <field name="return_reason_code"/>
                 <field name="return_type"/>
-                <field name="refund_amount" widget="monetary"/>
+                <field name="refund_total" widget="monetary"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'pending'"
                        decoration-success="state == 'completed'"
-                       decoration-danger="state == 'canceled'"/>
+                       decoration-danger="state == 'cancelled'"/>
             </list>
         </field>
     </record>
@@ -445,17 +421,27 @@
         <field name="arch" type="xml">
             <form string="Amazon Return">
                 <header>
-                    <button name="action_process_return" 
-                            string="Process Return" 
+                    <button name="action_authorize" 
+                            string="Authorize" 
                             type="object" 
                             class="btn-primary"
                             invisible="state != 'pending'"/>
-                    <button name="action_issue_refund" 
-                            string="Issue Refund" 
+                    <button name="action_receive" 
+                            string="Mark Received" 
                             type="object" 
                             class="btn-secondary"
-                            invisible="state != 'pending'"/>
-                    <field name="state" widget="statusbar" statusbar_visible="pending,completed"/>
+                            invisible="state != 'authorized'"/>
+                    <button name="action_complete" 
+                            string="Complete" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state not in ['authorized', 'received']"/>
+                    <button name="action_cancel" 
+                            string="Cancel" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="state not in ['pending', 'authorized']"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,authorized,received,completed"/>
                 </header>
                 <sheet>
                     <group>
@@ -463,29 +449,42 @@
                             <field name="return_id"/>
                             <field name="order_id"/>
                             <field name="return_date"/>
-                            <field name="return_reason"/>
-                            <field name="return_sub_reason"/>
+                            <field name="return_reason_code"/>
+                            <field name="return_reason_text"/>
                         </group>
                         <group string="Resolution">
                             <field name="return_type"/>
-                            <field name="refund_amount" widget="monetary"/>
+                            <field name="refund_total" widget="monetary"/>
                             <field name="currency_id" invisible="1"/>
-                            <field name="resolution_date"/>
+                            <field name="refund_date"/>
                         </group>
                     </group>
-                    <group string="Items">
-                        <field name="return_line_ids" nolabel="1">
-                            <list>
-                                <field name="product_id"/>
-                                <field name="sku"/>
-                                <field name="quantity"/>
-                                <field name="refund_amount" widget="monetary"/>
-                            </list>
-                        </field>
+                    <group string="Product">
+                        <group>
+                            <field name="asin"/>
+                            <field name="seller_sku"/>
+                            <field name="product_name"/>
+                            <field name="quantity"/>
+                        </group>
+                        <group>
+                            <field name="detailed_disposition"/>
+                            <field name="is_customer_fault"/>
+                        </group>
+                    </group>
+                    <group string="Refund Breakdown">
+                        <group>
+                            <field name="refund_item_price" widget="monetary"/>
+                            <field name="refund_shipping" widget="monetary"/>
+                            <field name="refund_tax" widget="monetary"/>
+                        </group>
+                        <group>
+                            <field name="restocking_fee" widget="monetary"/>
+                            <field name="net_refund" widget="monetary"/>
+                        </group>
                     </group>
                     <group string="Comments">
-                        <field name="buyer_comment" readonly="1"/>
-                        <field name="seller_comment"/>
+                        <field name="customer_comments" readonly="1"/>
+                        <field name="internal_notes"/>
                     </group>
                 </sheet>
                 <chatter/>
@@ -500,13 +499,13 @@
             <search string="Search Returns">
                 <field name="return_id"/>
                 <field name="order_id"/>
-                <field name="return_reason"/>
+                <field name="return_reason_code"/>
                 <separator/>
                 <filter name="filter_pending" string="Pending" domain="[('state', '=', 'pending')]"/>
                 <filter name="filter_completed" string="Completed" domain="[('state', '=', 'completed')]"/>
                 <group expand="0" string="Group By">
                     <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
-                    <filter name="group_reason" string="Reason" context="{'group_by': 'return_reason'}"/>
+                    <filter name="group_reason" string="Reason" context="{'group_by': 'return_reason_code'}"/>
                     <filter name="group_date" string="Return Date" context="{'group_by': 'return_date:month'}"/>
                 </group>
             </search>
