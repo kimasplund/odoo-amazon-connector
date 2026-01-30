@@ -835,12 +835,14 @@ class AmazonOrder(models.Model):
     # ══════════════════════════════════════════════════════════════════════════
     
     @api.model
-    def create_from_spapi(self, account, order_data):
+    def create_from_spapi(self, account, order_data, marketplace_cache=None, currency_cache=None):
         """Create or update Amazon order from SP-API response.
         
         Args:
             account: amazon.account record
             order_data: dict from SP-API Orders API
+            marketplace_cache: dict to cache marketplace records
+            currency_cache: dict to cache currency records
             
         Returns:
             amazon.order record
@@ -852,7 +854,11 @@ class AmazonOrder(models.Model):
             ('account_id', '=', account.id),
         ], limit=1)
         
-        vals = self._prepare_vals_from_spapi(account, order_data)
+        vals = self._prepare_vals_from_spapi(
+            account, order_data,
+            marketplace_cache=marketplace_cache,
+            currency_cache=currency_cache
+        )
         
         if existing:
             existing.write(vals)
@@ -861,23 +867,38 @@ class AmazonOrder(models.Model):
             return self.create(vals)
     
     @api.model
-    def _prepare_vals_from_spapi(self, account, data):
+    def _prepare_vals_from_spapi(self, account, data, marketplace_cache=None, currency_cache=None):
         """Transform SP-API order data to model values."""
         # Get marketplace
         marketplace_id_amz = data.get('MarketplaceId')
-        marketplace = self.env['amazon.marketplace'].search([
-            ('marketplace_id', '=', marketplace_id_amz)
-        ], limit=1)
+        marketplace = None
+
+        if marketplace_cache is not None and marketplace_id_amz in marketplace_cache:
+            marketplace = marketplace_cache[marketplace_id_amz]
+        else:
+            marketplace = self.env['amazon.marketplace'].search([
+                ('marketplace_id', '=', marketplace_id_amz)
+            ], limit=1)
+            if marketplace_cache is not None and marketplace:
+                marketplace_cache[marketplace_id_amz] = marketplace
         
         # Get currency
         order_total = data.get('OrderTotal', {})
         currency_code = order_total.get('CurrencyCode', 'EUR')
-        currency = self.env['res.currency'].search([
-            ('name', '=', currency_code)
-        ], limit=1)
-        if not currency:
-            currency = self.env.ref('base.EUR', raise_if_not_found=False) or \
-                       self.env['res.currency'].search([], limit=1)
+        currency = None
+
+        if currency_cache is not None and currency_code in currency_cache:
+            currency = currency_cache[currency_code]
+        else:
+            currency = self.env['res.currency'].search([
+                ('name', '=', currency_code)
+            ], limit=1)
+            if not currency:
+                currency = self.env.ref('base.EUR', raise_if_not_found=False) or \
+                           self.env['res.currency'].search([], limit=1)
+
+            if currency_cache is not None and currency:
+                currency_cache[currency_code] = currency
         
         # Parse shipping address
         ship_addr = data.get('ShippingAddress', {})

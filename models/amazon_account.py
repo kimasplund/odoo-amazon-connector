@@ -841,7 +841,88 @@ class AmazonAccount(models.Model):
     def _sync_orders(self):
         """Sync orders from Amazon."""
         _logger.info('Syncing orders for account: %s', self.name)
-        # TODO: Implement via sp_api_orders service
+
+        self.ensure_one()
+
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_orders import SPAPIOrders
+
+        # Determine time range
+        # If we have a last sync date, check for updates since then.
+        # Otherwise, fetch orders created in the last N days.
+        created_after = None
+        last_updated_after = None
+
+        if self.last_sync_date:
+            # Go back slightly to ensure no overlap overlap/gaps
+            last_updated_after = self.last_sync_date - timedelta(minutes=5)
+        else:
+            created_after = fields.Datetime.now() - timedelta(days=self.order_sync_days)
+
+        try:
+            client = OdooSPAPIClient(
+                client_id=self.lwa_client_id,
+                client_secret=self.lwa_client_secret,
+                refresh_token=self.refresh_token,
+                aws_access_key=self.aws_access_key,
+                aws_secret_key=self.aws_secret_key,
+                region=self.api_region,
+                marketplace_id=self.default_marketplace_id.marketplace_id,
+                sandbox=self.sandbox_mode
+            )
+
+            try:
+                orders_api = SPAPIOrders(client)
+
+                # Fetch orders (handles pagination)
+                # We filter by our account's marketplaces
+                marketplace_ids = self.marketplace_ids.mapped('marketplace_id')
+
+                orders = orders_api.get_orders_all(
+                    created_after=created_after,
+                    last_updated_after=last_updated_after,
+                    marketplace_ids=marketplace_ids
+                )
+
+                _logger.info("Fetched %d orders for account %s", len(orders), self.name)
+
+                # Initialize caches for performance optimization
+                marketplace_cache = {}
+                currency_cache = {}
+
+                AmazonOrder = self.env['amazon.order']
+
+                # Process orders
+                count = 0
+                for order_data in orders:
+                    try:
+                        AmazonOrder.create_from_spapi(
+                            self,
+                            order_data,
+                            marketplace_cache=marketplace_cache,
+                            currency_cache=currency_cache
+                        )
+                        count += 1
+                        # Commit periodically
+                        if count % 10 == 0:
+                            self.env.cr.commit()
+                    except Exception as e:
+                        _logger.exception(
+                            "Failed to import order %s: %s",
+                            order_data.get('AmazonOrderId'), e
+                        )
+
+            finally:
+                client.close()
+
+        except Exception as e:
+            _logger.exception("Order sync failed for account %s", self.name)
+            # Don't raise, just log, so other sync jobs can proceed if called from sync_all
+            self.write({
+                'last_error': str(e),
+                'sync_status': 'error'
+            })
+            return
 
     def _sync_inventory(self):
         """Sync inventory levels."""
