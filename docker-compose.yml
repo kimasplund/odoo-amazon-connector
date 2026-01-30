@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   odoo:
     image: odoo:18
@@ -13,7 +12,7 @@ services:
       - HOST=db
       - USER=odoo
       - PASSWORD=odoo
-    command: -- --dev=all -i amazon_connector
+    command: -- --dev=all -d odoo -i amazon_connector
 
   db:
     image: postgres:15
