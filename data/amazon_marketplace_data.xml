@@ -6,8 +6,6 @@
         <record id="marketplace_us" model="amazon.marketplace">
             <field name="name">Amazon.com (United States)</field>
             <field name="marketplace_id">ATVPDKIKX0DER</field>
-            <field name="country_id" ref="base.us"/>
-            <field name="currency_id" ref="base.USD"/>
             <field name="region">na</field>
             <field name="domain">amazon.com</field>
             <field name="seller_central_url">https://sellercentral.amazon.com</field>
@@ -18,8 +16,6 @@
         <record id="marketplace_ca" model="amazon.marketplace">
             <field name="name">Amazon.ca (Canada)</field>
             <field name="marketplace_id">A2EUQ1WTGCTBG2</field>
-            <field name="country_id" ref="base.ca"/>
-            <field name="currency_id" ref="base.CAD"/>
             <field name="region">na</field>
             <field name="domain">amazon.ca</field>
             <field name="seller_central_url">https://sellercentral.amazon.ca</field>
@@ -30,8 +26,6 @@
         <record id="marketplace_mx" model="amazon.marketplace">
             <field name="name">Amazon.com.mx (Mexico)</field>
             <field name="marketplace_id">A1AM78C64UM0Y8</field>
-            <field name="country_id" ref="base.mx"/>
-            <field name="currency_id" ref="base.MXN"/>
             <field name="region">na</field>
             <field name="domain">amazon.com.mx</field>
             <field name="seller_central_url">https://sellercentral.amazon.com.mx</field>
@@ -42,8 +36,6 @@
         <record id="marketplace_br" model="amazon.marketplace">
             <field name="name">Amazon.com.br (Brazil)</field>
             <field name="marketplace_id">A2Q3Y263D00KWC</field>
-            <field name="country_id" ref="base.br"/>
-            <field name="currency_id" ref="base.BRL"/>
             <field name="region">na</field>
             <field name="domain">amazon.com.br</field>
             <field name="seller_central_url">https://sellercentral.amazon.com.br</field>
@@ -55,8 +47,6 @@
         <record id="marketplace_de" model="amazon.marketplace">
             <field name="name">Amazon.de (Germany)</field>
             <field name="marketplace_id">A1PA6795UKMFR9</field>
-            <field name="country_id" ref="base.de"/>
-            <field name="currency_id" ref="base.EUR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.de</field>
             <field name="seller_central_url">https://sellercentral.amazon.de</field>
@@ -67,8 +57,6 @@
         <record id="marketplace_uk" model="amazon.marketplace">
             <field name="name">Amazon.co.uk (United Kingdom)</field>
             <field name="marketplace_id">A1F83G8C2ARO7P</field>
-            <field name="country_id" ref="base.gb"/>
-            <field name="currency_id" ref="base.GBP"/>
             <field name="region">eu</field>
             <field name="domain">amazon.co.uk</field>
             <field name="seller_central_url">https://sellercentral.amazon.co.uk</field>
@@ -79,8 +67,6 @@
         <record id="marketplace_fr" model="amazon.marketplace">
             <field name="name">Amazon.fr (France)</field>
             <field name="marketplace_id">A13V1IB3VIYZZH</field>
-            <field name="country_id" ref="base.fr"/>
-            <field name="currency_id" ref="base.EUR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.fr</field>
             <field name="seller_central_url">https://sellercentral.amazon.fr</field>
@@ -91,8 +77,6 @@
         <record id="marketplace_it" model="amazon.marketplace">
             <field name="name">Amazon.it (Italy)</field>
             <field name="marketplace_id">APJ6JRA9NG5V4</field>
-            <field name="country_id" ref="base.it"/>
-            <field name="currency_id" ref="base.EUR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.it</field>
             <field name="seller_central_url">https://sellercentral.amazon.it</field>
@@ -103,8 +87,6 @@
         <record id="marketplace_es" model="amazon.marketplace">
             <field name="name">Amazon.es (Spain)</field>
             <field name="marketplace_id">A1RKKUPIHCS9HS</field>
-            <field name="country_id" ref="base.es"/>
-            <field name="currency_id" ref="base.EUR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.es</field>
             <field name="seller_central_url">https://sellercentral.amazon.es</field>
@@ -115,8 +97,6 @@
         <record id="marketplace_nl" model="amazon.marketplace">
             <field name="name">Amazon.nl (Netherlands)</field>
             <field name="marketplace_id">A1805IZSGTT6HS</field>
-            <field name="country_id" ref="base.nl"/>
-            <field name="currency_id" ref="base.EUR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.nl</field>
             <field name="seller_central_url">https://sellercentral.amazon.nl</field>
@@ -127,8 +107,6 @@
         <record id="marketplace_se" model="amazon.marketplace">
             <field name="name">Amazon.se (Sweden)</field>
             <field name="marketplace_id">A2NODRKZP88ZB9</field>
-            <field name="country_id" ref="base.se"/>
-            <field name="currency_id" ref="base.SEK"/>
             <field name="region">eu</field>
             <field name="domain">amazon.se</field>
             <field name="seller_central_url">https://sellercentral.amazon.se</field>
@@ -139,8 +117,6 @@
         <record id="marketplace_pl" model="amazon.marketplace">
             <field name="name">Amazon.pl (Poland)</field>
             <field name="marketplace_id">A1C3SOZRARQ6R3</field>
-            <field name="country_id" ref="base.pl"/>
-            <field name="currency_id" ref="base.PLN"/>
             <field name="region">eu</field>
             <field name="domain">amazon.pl</field>
             <field name="seller_central_url">https://sellercentral.amazon.pl</field>
@@ -151,8 +127,6 @@
         <record id="marketplace_be" model="amazon.marketplace">
             <field name="name">Amazon.com.be (Belgium)</field>
             <field name="marketplace_id">AMEN7PMS3EDWL</field>
-            <field name="country_id" ref="base.be"/>
-            <field name="currency_id" ref="base.EUR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.com.be</field>
             <field name="seller_central_url">https://sellercentral.amazon.com.be</field>
@@ -163,8 +137,6 @@
         <record id="marketplace_tr" model="amazon.marketplace">
             <field name="name">Amazon.com.tr (Turkey)</field>
             <field name="marketplace_id">A33AVAJ2PDY3EV</field>
-            <field name="country_id" ref="base.tr"/>
-            <field name="currency_id" ref="base.TRY"/>
             <field name="region">eu</field>
             <field name="domain">amazon.com.tr</field>
             <field name="seller_central_url">https://sellercentral.amazon.com.tr</field>
@@ -176,8 +148,6 @@
         <record id="marketplace_jp" model="amazon.marketplace">
             <field name="name">Amazon.co.jp (Japan)</field>
             <field name="marketplace_id">A1VC38T7YXB528</field>
-            <field name="country_id" ref="base.jp"/>
-            <field name="currency_id" ref="base.JPY"/>
             <field name="region">fe</field>
             <field name="domain">amazon.co.jp</field>
             <field name="seller_central_url">https://sellercentral.amazon.co.jp</field>
@@ -188,8 +158,6 @@
         <record id="marketplace_au" model="amazon.marketplace">
             <field name="name">Amazon.com.au (Australia)</field>
             <field name="marketplace_id">A39IBJ37TRP1C6</field>
-            <field name="country_id" ref="base.au"/>
-            <field name="currency_id" ref="base.AUD"/>
             <field name="region">fe</field>
             <field name="domain">amazon.com.au</field>
             <field name="seller_central_url">https://sellercentral.amazon.com.au</field>
@@ -200,8 +168,6 @@
         <record id="marketplace_sg" model="amazon.marketplace">
             <field name="name">Amazon.sg (Singapore)</field>
             <field name="marketplace_id">A19VAU5U5O7RUS</field>
-            <field name="country_id" ref="base.sg"/>
-            <field name="currency_id" ref="base.SGD"/>
             <field name="region">fe</field>
             <field name="domain">amazon.sg</field>
             <field name="seller_central_url">https://sellercentral.amazon.sg</field>
@@ -212,8 +178,6 @@
         <record id="marketplace_in" model="amazon.marketplace">
             <field name="name">Amazon.in (India)</field>
             <field name="marketplace_id">A21TJRUUN4KGV</field>
-            <field name="country_id" ref="base.in"/>
-            <field name="currency_id" ref="base.INR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.in</field>
             <field name="seller_central_url">https://sellercentral.amazon.in</field>
@@ -224,8 +188,6 @@
         <record id="marketplace_ae" model="amazon.marketplace">
             <field name="name">Amazon.ae (UAE)</field>
             <field name="marketplace_id">A2VIGQ35RCS4UG</field>
-            <field name="country_id" ref="base.ae"/>
-            <field name="currency_id" ref="base.AED"/>
             <field name="region">eu</field>
             <field name="domain">amazon.ae</field>
             <field name="seller_central_url">https://sellercentral.amazon.ae</field>
@@ -236,8 +198,6 @@
         <record id="marketplace_sa" model="amazon.marketplace">
             <field name="name">Amazon.sa (Saudi Arabia)</field>
             <field name="marketplace_id">A17E79C6D8DWNP</field>
-            <field name="country_id" ref="base.sa"/>
-            <field name="currency_id" ref="base.SAR"/>
             <field name="region">eu</field>
             <field name="domain">amazon.sa</field>
             <field name="seller_central_url">https://sellercentral.amazon.sa</field>

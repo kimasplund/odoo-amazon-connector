@@ -49,13 +49,11 @@ class AmazonMarketplace(models.Model):
     country_id = fields.Many2one(
         comodel_name='res.country',
         string='Country',
-        required=True,
         help='Country where this marketplace operates',
     )
     currency_id = fields.Many2one(
         comodel_name='res.currency',
         string='Currency',
-        required=True,
         help='Default currency for this marketplace',
     )
     lang_id = fields.Many2one(
