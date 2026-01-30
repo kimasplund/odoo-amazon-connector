@@ -41,14 +41,14 @@
                                 <field name="marketplace_id"/>
                                 <field name="sku"/>
                                 <field name="asin"/>
-                                <field name="price" widget="monetary"/>
+                                <field name="list_price" widget="monetary"/>
                                 <field name="currency_id" column_invisible="1"/>
                                 <field name="quantity_available"/>
                                 <field name="fulfillment_channel" widget="badge"/>
-                                <field name="listing_status" widget="badge"
-                                       decoration-success="listing_status == 'active'"
-                                       decoration-warning="listing_status == 'suppressed'"
-                                       decoration-danger="listing_status in ['inactive', 'deleted']"/>
+                                <field name="state" widget="badge"
+                                       decoration-success="state == 'active'"
+                                       decoration-warning="state == 'suppressed'"
+                                       decoration-danger="state in ['inactive', 'deleted']"/>
                             </list>
                         </field>
                     </group>
