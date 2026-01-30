@@ -574,6 +574,29 @@ class AmazonAccount(models.Model):
     # -------------------------------------------------------------------------
     # API AUTHENTICATION
     # -------------------------------------------------------------------------
+    def get_sp_api_client(self):
+        """Get an authenticated SP-API client for this account.
+
+        Returns:
+            OdooSPAPIClient: Configured API client
+        """
+        self.ensure_one()
+        from ..services.sp_api_client import OdooSPAPIClient
+
+        if not self.lwa_client_id:
+            raise UserError(_('Credentials not configured for account %s') % self.name)
+
+        return OdooSPAPIClient(
+            client_id=self.lwa_client_id,
+            client_secret=self.lwa_client_secret,
+            refresh_token=self.refresh_token,
+            aws_access_key=self.aws_access_key,
+            aws_secret_key=self.aws_secret_key,
+            region=self.api_region,
+            marketplace_id=self.default_marketplace_id.marketplace_id,
+            sandbox=self.sandbox_mode
+        )
+
     def _get_access_token(self):
         """Get a valid access token, refreshing if necessary.
         
