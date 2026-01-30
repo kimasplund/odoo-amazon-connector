@@ -385,12 +385,39 @@ class AmazonFee(models.Model):
         """
         Attempt to link fee to order line based on SKU matching.
         """
-        for fee in self.filtered(lambda f: f.amazon_order_id and f.sku and not f.amazon_order_line_id):
-            line = fee.amazon_order_id.order_line_ids.filtered(
-                lambda l: l.sku == fee.sku
-            )
-            if line:
-                fee.amazon_order_line_id = line[0].id
+        fees = self.filtered(lambda f: f.amazon_order_id and f.sku and not f.amazon_order_line_id)
+        if not fees:
+            return
+
+        # Pre-fetch lines for all related orders to avoid N+1 queries
+        # Map: (order_id, seller_sku) -> line_id
+        orders = fees.mapped('amazon_order_id')
+        # Note: amazon.order.line uses 'seller_sku', not 'sku'
+        lines = self.env['amazon.order.line'].search([
+            ('order_id', 'in', orders.ids),
+            ('seller_sku', '!=', False),
+        ])
+
+        # Build map favoring the first line found (standard Odoo sort order)
+        line_map = {}
+        for line in lines:
+            key = (line.order_id.id, line.seller_sku)
+            if key not in line_map:
+                line_map[key] = line.id
+
+        # Group fees by target line to batch writes
+        fees_by_line = {}
+        for fee in fees:
+            key = (fee.amazon_order_id.id, fee.sku)
+            if key in line_map:
+                line_id = line_map[key]
+                if line_id not in fees_by_line:
+                    fees_by_line[line_id] = self.env['amazon.fee']
+                fees_by_line[line_id] |= fee
+
+        # Batch update
+        for line_id, fees_subset in fees_by_line.items():
+            fees_subset.write({'amazon_order_line_id': line_id})
     
     # ==========================================
     # REPORTING METHODS
