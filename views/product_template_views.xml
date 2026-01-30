@@ -80,8 +80,8 @@
         <field name="arch" type="xml">
             <filter name="filter_to_sell" position="after">
                 <separator/>
-                <filter name="filter_on_amazon" string="On Amazon" domain="[('amazon_listing_count', '>', 0)]"/>
-                <filter name="filter_not_on_amazon" string="Not on Amazon" domain="[('amazon_listing_count', '=', 0)]"/>
+                <filter name="filter_on_amazon" string="On Amazon" domain="[('has_amazon_listing', '=', True)]"/>
+                <filter name="filter_not_on_amazon" string="Not on Amazon" domain="[('has_amazon_listing', '=', False)]"/>
             </filter>
         </field>
     </record>
