@@ -421,20 +421,25 @@ class AmazonFBAInventory(models.Model):
         return True
     
     @api.model
-    def _update_or_create_from_amazon(self, account_id, marketplace_id, data):
+    def _update_or_create_from_amazon(self, account_id, marketplace_id, data, existing_record=None):
         """
         Update or create inventory record from Amazon data.
         
         :param account_id: amazon.account ID
         :param marketplace_id: amazon.marketplace ID
         :param data: Dict with inventory data from Amazon
+        :param existing_record: Optional existing record to avoid search.
+                                Pass False to indicate record does not exist.
         :return: amazon.fba.inventory record
         """
-        existing = self.search([
-            ('account_id', '=', account_id),
-            ('marketplace_id', '=', marketplace_id),
-            ('amazon_sku', '=', data.get('sellerSku')),
-        ], limit=1)
+        if existing_record is not None:
+            existing = existing_record
+        else:
+            existing = self.search([
+                ('account_id', '=', account_id),
+                ('marketplace_id', '=', marketplace_id),
+                ('amazon_sku', '=', data.get('sellerSku')),
+            ], limit=1)
         
         details = data.get('inventoryDetails', {})
         vals = {
