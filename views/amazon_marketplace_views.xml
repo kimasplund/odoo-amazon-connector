@@ -29,13 +29,6 @@
         <field name="model">amazon.marketplace</field>
         <field name="arch" type="xml">
             <form string="Amazon Marketplace">
-                <header>
-                    <button name="action_test_connection" 
-                            string="Test Connection" 
-                            type="object" 
-                            class="btn-primary"
-                            icon="fa-plug"/>
-                </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_accounts" 
@@ -44,17 +37,11 @@
                                 icon="fa-users">
                             <field name="account_count" widget="statinfo" string="Accounts"/>
                         </button>
-                        <button name="action_view_products" 
+                        <button name="action_view_listings" 
                                 type="object" 
                                 class="oe_stat_button" 
                                 icon="fa-cubes">
-                            <field name="product_count" widget="statinfo" string="Products"/>
-                        </button>
-                        <button name="action_view_orders" 
-                                type="object" 
-                                class="oe_stat_button" 
-                                icon="fa-shopping-cart">
-                            <field name="order_count" widget="statinfo" string="Orders"/>
+                            <field name="listing_count" widget="statinfo" string="Listings"/>
                         </button>
                     </div>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
@@ -66,53 +53,26 @@
                     </div>
                     <group>
                         <group string="Marketplace Information">
-                            <field name="marketplace_id"/>
                             <field name="marketplace_id" placeholder="e.g., A1PA6795UKMFR9"/>
                             <field name="country_id" options="{'no_create': True}"/>
                             <field name="currency_id" options="{'no_create': True}"/>
+                            <field name="lang_id" options="{'no_create': True}"/>
                         </group>
                         <group string="Technical Configuration">
                             <field name="region" widget="selection"/>
-                            <field name="endpoint_url"/>
-                            <field name="sandbox_endpoint"/>
+                            <field name="endpoint_url" readonly="1"/>
+                            <field name="seller_central_url"/>
+                            <field name="domain"/>
                             <field name="active"/>
                         </group>
                     </group>
-                    <notebook>
-                        <page string="Settings" name="settings">
-                            <group>
-                                <group string="Sync Settings">
-                                    <field name="auto_sync_products"/>
-                                    <field name="auto_sync_orders"/>
-                                    <field name="auto_sync_inventory"/>
-                                    <field name="sync_interval" invisible="not auto_sync_orders"/>
-                                </group>
-                                <group string="Tax Configuration">
-                                    <field name="default_tax_id"/>
-                                    <field name="vat_rate"/>
-                                    <field name="vat_included"/>
-                                </group>
-                            </group>
-                        </page>
-                        <page string="FBA Settings" name="fba">
-                            <group>
-                                <group string="FBA Configuration">
-                                    <field name="fba_enabled"/>
-                                    <field name="fba_warehouse_id" invisible="not fba_enabled"/>
-                                    <field name="fba_location_id" invisible="not fba_enabled"/>
-                                </group>
-                                <group string="FBA Defaults">
-                                    <field name="default_prep_owner" invisible="not fba_enabled"/>
-                                    <field name="default_labeling_owner" invisible="not fba_enabled"/>
-                                </group>
-                            </group>
-                        </page>
-                        <page string="Notes" name="notes">
-                            <field name="notes" placeholder="Internal notes about this marketplace..."/>
-                        </page>
-                    </notebook>
+                    <group string="Tax &amp; Compliance">
+                        <group>
+                            <field name="vat_required"/>
+                            <field name="tax_calculation_method"/>
+                        </group>
+                    </group>
                 </sheet>
-                <chatter/>
             </form>
         </field>
     </record>
@@ -128,12 +88,11 @@
                 <field name="country_id"/>
                 <field name="currency_id"/>
                 <field name="active"/>
-                <field name="order_count"/>
-                <field name="product_count"/>
+                <field name="account_count"/>
+                <field name="listing_count"/>
                 <templates>
                     <t t-name="card">
                         <div class="d-flex align-items-center mb-2">
-                            <field name="country_id" widget="image" class="o_kanban_image rounded-circle" options="{'size': [48, 48]}"/>
                             <div class="ms-3">
                                 <strong class="o_kanban_record_title fs-5">
                                     <field name="name"/>
@@ -145,12 +104,12 @@
                         </div>
                         <div class="row mt-3">
                             <div class="col-6 text-center">
-                                <span class="fw-bold text-primary"><field name="product_count"/></span>
-                                <div class="text-muted small">Products</div>
+                                <span class="fw-bold text-primary"><field name="listing_count"/></span>
+                                <div class="text-muted small">Listings</div>
                             </div>
                             <div class="col-6 text-center">
-                                <span class="fw-bold text-success"><field name="order_count"/></span>
-                                <div class="text-muted small">Orders</div>
+                                <span class="fw-bold text-success"><field name="account_count"/></span>
+                                <div class="text-muted small">Accounts</div>
                             </div>
                         </div>
                         <div class="mt-2" t-if="!record.active.raw_value">
@@ -179,8 +138,6 @@
                 <filter name="filter_europe" string="Europe" domain="[('region', '=', 'eu')]"/>
                 <filter name="filter_north_america" string="North America" domain="[('region', '=', 'na')]"/>
                 <filter name="filter_far_east" string="Far East" domain="[('region', '=', 'fe')]"/>
-                <separator/>
-                <filter name="filter_fba_enabled" string="FBA Enabled" domain="[('fba_enabled', '=', True)]"/>
                 <group expand="0" string="Group By">
                     <filter name="group_region" string="Region" context="{'group_by': 'region'}"/>
                     <filter name="group_currency" string="Currency" context="{'group_by': 'currency_id'}"/>

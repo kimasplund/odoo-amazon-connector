@@ -264,11 +264,11 @@
         <field name="name">amazon.order.calendar</field>
         <field name="model">amazon.order</field>
         <field name="arch" type="xml">
-            <calendar string="Amazon Orders" date_start="purchase_date" color="state" mode="month" quick_create="0">
+            <calendar string="Amazon Orders" date_start="purchase_date" color="order_status" mode="month" quick_create="0">
                 <field name="amazon_order_id"/>
                 <field name="buyer_name"/>
                 <field name="order_total"/>
-                <field name="state"/>
+                <field name="order_status"/>
             </calendar>
         </field>
     </record>
@@ -294,7 +294,7 @@
                 <field name="marketplace_id" type="row"/>
                 <field name="purchase_date" interval="month" type="col"/>
                 <field name="order_total" type="measure"/>
-                <field name="items_count" type="measure"/>
+                <field name="order_line_count" type="measure"/>
             </pivot>
         </field>
     </record>
@@ -379,11 +379,11 @@
         <field name="arch" type="xml">
             <list string="Order Lines" create="0">
                 <field name="order_id"/>
-                <field name="amazon_order_item_id"/>
-                <field name="sku"/>
+                <field name="order_item_id"/>
+                <field name="seller_sku"/>
                 <field name="asin"/>
                 <field name="title"/>
-                <field name="quantity"/>
+                <field name="quantity_ordered"/>
                 <field name="item_price" widget="monetary"/>
                 <field name="item_status" widget="badge"/>
                 <field name="currency_id" column_invisible="1"/>
