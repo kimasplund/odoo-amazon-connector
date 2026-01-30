@@ -150,6 +150,7 @@ class RateLimiter:
         'getProductPricing': {'rate': 0.5, 'burst': 1},
         'getCompetitivePricing': {'rate': 0.5, 'burst': 1},
         'getItemOffers': {'rate': 0.5, 'burst': 1},
+        'getMarketplaceParticipations': {'rate': 0.0167, 'burst': 15},
     }
     
     def __init__(self, limits: Dict[str, Dict[str, float]] = None):

@@ -15,6 +15,7 @@ from . import sp_api_fba
 from . import sp_api_feeds
 from . import sp_api_reports
 from . import sp_api_pricing
+from . import sp_api_sellers
 
 __all__ = [
     'encryption',
@@ -26,4 +27,5 @@ __all__ = [
     'sp_api_feeds',
     'sp_api_reports',
     'sp_api_pricing',
+    'sp_api_sellers',
 ]
