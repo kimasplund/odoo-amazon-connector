@@ -339,12 +339,17 @@ class AmazonInventorySync(models.Model):
         
         # Build inventory feed
         inventory_updates = []
+
+        # Batch fetch quantities for all listings
+        # This avoids the N+1 query problem by calculating all quantities in one go
+        quantities = listings._get_sellable_quantities_batch()
         
         for listing in listings:
             processed += 1
             try:
-                # Get Odoo stock quantity
-                quantity = listing._get_sellable_quantity()
+                # Get Odoo stock quantity from pre-calculated batch
+                # If for some reason the ID is missing (shouldn't happen), default to 0
+                quantity = quantities.get(listing.id, 0.0)
                 
                 inventory_updates.append({
                     'sku': listing.seller_sku,
