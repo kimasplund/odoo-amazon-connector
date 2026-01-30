@@ -420,6 +420,7 @@ class SPAPIProducts:
         """
         params = {
             'ItemType': item_type,
+            'MarketplaceId': self.client.marketplace_id,
         }
         
         if item_type == "Asin" and asins:
@@ -437,6 +438,7 @@ class SPAPIProducts:
             '/products/pricing/v0/price',
             operation='getPricing',
             params=params,
+            add_marketplace=False,
         )
     
     def get_competitive_pricing(
@@ -460,6 +462,7 @@ class SPAPIProducts:
         """
         params = {
             'ItemType': item_type,
+            'MarketplaceId': self.client.marketplace_id,
         }
         
         if item_type == "Asin" and asins:
@@ -474,6 +477,7 @@ class SPAPIProducts:
             '/products/pricing/v0/competitivePrice',
             operation='getCompetitivePricing',
             params=params,
+            add_marketplace=False,
         )
     
     def get_item_offers(

@@ -806,10 +806,121 @@ class AmazonProductListing(models.Model):
 
     def action_sync_price(self):
         """Sync pricing data from Amazon."""
+        # Group by account and marketplace to reuse client and ensure correct marketplace context
+        grouped_records = {}
         for record in self:
-            _logger.info('Syncing price for %s', record.display_name)
-            # TODO: Implement via sp_api_products service
-            record.last_price_sync = fields.Datetime.now()
+            key = (record.account_id, record.marketplace_id)
+            if key not in grouped_records:
+                grouped_records[key] = self.env['amazon.product.listing']
+            grouped_records[key] |= record
+
+        for (account, marketplace), records in grouped_records.items():
+            if not account or not marketplace:
+                continue
+
+            _logger.info('Syncing prices for account %s on %s (%d records)',
+                        account.name, marketplace.name, len(records))
+
+            try:
+                # Initialize client for this account and marketplace
+                client = OdooSPAPIClient(
+                    client_id=account.lwa_client_id,
+                    client_secret=account.lwa_client_secret,
+                    refresh_token=account.refresh_token,
+                    aws_access_key=account.aws_access_key,
+                    aws_secret_key=account.aws_secret_key,
+                    region=account.api_region,
+                    marketplace_id=marketplace.marketplace_id,
+                    sandbox=account.sandbox_mode
+                )
+
+                with client:
+                    products_api = SPAPIProducts(client)
+
+                    # Process in batches of 20 (Amazon limit)
+                    batch_size = 20
+                    for i in range(0, len(records), batch_size):
+                        batch = records[i:i + batch_size]
+
+                        # Prepare lists for batch requests
+                        skus = batch.mapped('sku')
+                        asins = batch.mapped('asin')
+
+                        # 1. Get my price (List Price)
+                        try:
+                            pricing_response = products_api.get_pricing(
+                                item_type='Sku',
+                                skus=skus,
+                                item_condition='New'
+                            )
+                            self._process_pricing_response(batch, pricing_response)
+                        except Exception as e:
+                            _logger.error("Failed to get pricing for batch %s: %s", skus, str(e))
+
+                        # 2. Get competitive price (Buy Box)
+                        try:
+                            comp_pricing_response = products_api.get_competitive_pricing(
+                                item_type='Asin',
+                                asins=asins
+                            )
+                            self._process_competitive_pricing_response(batch, comp_pricing_response)
+                        except Exception as e:
+                            _logger.error("Failed to get competitive pricing for batch %s: %s", asins, str(e))
+
+                        # Update sync timestamp
+                        batch.write({'last_price_sync': fields.Datetime.now()})
+
+            except Exception as e:
+                _logger.error("Failed to sync prices for account %s: %s", account.name, str(e))
+
+    def _process_pricing_response(self, records, response):
+        """Update records with pricing data."""
+        payload = response.get('payload', [])
+        # Create a map of SKU -> Pricing Data
+        pricing_map = {}
+        for item in payload:
+            if item.get('status') == 'Success':
+                sku = item.get('SellerSKU')
+                product = item.get('Product', {})
+                offers = product.get('Offers', [])
+                if offers:
+                    # Taking the first offer as it's for specific SKU
+                    offer = offers[0]
+                    buying_price = offer.get('BuyingPrice', {})
+                    listing_price = buying_price.get('ListingPrice', {})
+                    amount = listing_price.get('Amount')
+                    if amount:
+                        pricing_map[sku] = float(amount)
+
+        for record in records:
+            if record.sku in pricing_map:
+                record.list_price = pricing_map[record.sku]
+
+    def _process_competitive_pricing_response(self, records, response):
+        """Update records with competitive pricing data."""
+        payload = response.get('payload', [])
+        # Create a map of ASIN -> Competitive Price
+        comp_price_map = {}
+        for item in payload:
+            if item.get('status') == 'Success':
+                asin = item.get('ASIN')
+                product = item.get('Product', {})
+                comp_pricing = product.get('CompetitivePricing', {})
+                comp_prices = comp_pricing.get('CompetitivePrices', [])
+
+                # Find the Buy Box price (CompetitivePriceId='1')
+                for cp in comp_prices:
+                    if cp.get('CompetitivePriceId') == '1':
+                        price = cp.get('Price', {})
+                        landed_price = price.get('LandedPrice', {})
+                        amount = landed_price.get('Amount')
+                        if amount:
+                            comp_price_map[asin] = float(amount)
+                        break
+
+        for record in records:
+            if record.asin in comp_price_map:
+                record.buybox_price = comp_price_map[record.asin]
 
     def action_update_price(self):
         """Push price update to Amazon."""
