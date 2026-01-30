@@ -6,6 +6,7 @@ This package provides comprehensive integration with Amazon's Selling Partner AP
 including authentication, rate limiting, request signing, and API-specific clients.
 """
 
+from . import encryption
 from . import sp_api_auth
 from . import sp_api_client
 from . import sp_api_products
@@ -16,6 +17,7 @@ from . import sp_api_reports
 from . import sp_api_pricing
 
 __all__ = [
+    'encryption',
     'sp_api_auth',
     'sp_api_client',
     'sp_api_products',

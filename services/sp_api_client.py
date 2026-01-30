@@ -413,6 +413,36 @@ class SPAPIClient:
             "sandbox" if sandbox else "production"
         )
     
+    def _redact_data(self, data: Any) -> Any:
+        """Redact sensitive data from logs."""
+        if not isinstance(data, (dict, list)):
+            return data
+
+        if isinstance(data, list):
+            return [self._redact_data(item) for item in data]
+
+        if isinstance(data, dict):
+            redacted = data.copy()
+            sensitive_keys = {
+                'access_token', 'refresh_token', 'client_secret', 'aws_secret_key',
+                'x-amz-access-token', 'Authorization',
+                'buyer_email', 'buyer_name', 'email', 'name',
+                'addressLine1', 'addressLine2', 'addressLine3', 'phone',
+                'BuyerEmail', 'BuyerName', 'Name',
+                'AddressLine1', 'AddressLine2', 'AddressLine3', 'Phone',
+                'BuyerTaxRegistrationId', 'BuyerLegalCompanyName',
+                'shippingAddress', 'buyerInfo', 'ShippingAddress', 'BuyerInfo',
+            }
+
+            for key, value in redacted.items():
+                if key in sensitive_keys:
+                    redacted[key] = '***REDACTED***'
+                elif isinstance(value, (dict, list)):
+                    redacted[key] = self._redact_data(value)
+
+            return redacted
+        return data
+
     def _create_session(self) -> requests.Session:
         """Create a requests session with retry configuration."""
         session = requests.Session()
@@ -550,6 +580,7 @@ class SPAPIClient:
         headers: Dict[str, str] = None,
         add_marketplace: bool = True,
         raw_response: bool = False,
+        restricted_resources: List[Dict[str, Any]] = None,
     ) -> Union[Dict[str, Any], requests.Response]:
         """
         Make an authenticated request to SP-API.
@@ -563,6 +594,7 @@ class SPAPIClient:
             headers: Additional headers
             add_marketplace: Add marketplace_id to params if not present
             raw_response: Return raw Response object
+            restricted_resources: List of restricted resources for RDT generation
             
         Returns:
             Parsed JSON response or raw Response object
@@ -582,7 +614,29 @@ class SPAPIClient:
         req_headers = {
             'User-Agent': self.USER_AGENT,
         }
-        req_headers.update(self.auth.get_auth_headers())
+
+        # Handle Restricted Data Token (RDT)
+        if restricted_resources:
+            try:
+                # Late import to avoid circular dependency
+                from .sp_api_tokens import SPAPITokens
+                tokens_api = SPAPITokens(self)
+                rdt_resp = tokens_api.create_restricted_data_token(restricted_resources)
+                access_token = rdt_resp.get('restrictedDataToken')
+
+                req_headers.update({
+                    'x-amz-access-token': access_token,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                })
+                _logger.debug("Using Restricted Data Token for operation %s", operation)
+            except Exception as e:
+                _logger.error("Failed to obtain RDT: %s", str(e))
+                raise SPAPIError(f"Failed to obtain Restricted Data Token: {str(e)}")
+        else:
+            # Use standard LWA token
+            req_headers.update(self.auth.get_auth_headers())
+
         if headers:
             req_headers.update(headers)
         
@@ -602,7 +656,7 @@ class SPAPIClient:
             try:
                 _logger.debug(
                     "SP-API Request: %s %s (params=%s)",
-                    method.upper(), url, params
+                    method.upper(), url, self._redact_data(params)
                 )
                 
                 response = self._session.request(
@@ -877,12 +931,16 @@ class OdooSPAPIClient(SPAPIClient):
             error_message: Error message if failed
         """
         try:
+            # Redact sensitive data
+            safe_request = self._redact_data(request_data) if request_data else {}
+            safe_response = self._redact_data(response_data) if response_data else {}
+
             if 'amazon.api.log' in env:
                 env['amazon.api.log'].sudo().create({
                     'operation': operation,
                     'success': success,
-                    'request_data': json.dumps(request_data or {}, default=str)[:10000],
-                    'response_data': json.dumps(response_data or {}, default=str)[:10000],
+                    'request_data': json.dumps(safe_request, default=str)[:10000],
+                    'response_data': json.dumps(safe_response, default=str)[:10000],
                     'error_message': error_message,
                     'timestamp': datetime.now(timezone.utc),
                 })

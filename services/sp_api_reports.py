@@ -85,7 +85,7 @@ class ReportType(str, Enum):
     GET_FBA_SNS_FORECAST_DATA = "GET_FBA_SNS_FORECAST_DATA"
     GET_FBA_SNS_PERFORMANCE_DATA = "GET_FBA_SNS_PERFORMANCE_DATA"
     GET_FBA_INVENTORY_AGED_DATA = "GET_FBA_INVENTORY_AGED_DATA"
-    GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA = "GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA"
+    # Duplicate removed: GET_FBA_MYI_UNSUPPRESSED_INVENTORY_DATA
     GET_EXCESS_INVENTORY_DATA = "GET_EXCESS_INVENTORY_DATA"
     GET_STRANDED_INVENTORY_UI_DATA = "GET_STRANDED_INVENTORY_UI_DATA"
     GET_STRANDED_INVENTORY_LOADER_DATA = "GET_STRANDED_INVENTORY_LOADER_DATA"
@@ -165,6 +165,26 @@ class SPAPIReports:
     
     API_VERSION = "2021-06-30"
     
+    # Reports containing PII that require RDT
+    PII_REPORT_TYPES = {
+        ReportType.GET_FLAT_FILE_ORDERS_DATA,
+        ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_LAST_UPDATE,
+        ReportType.GET_FLAT_FILE_ALL_ORDERS_DATA_BY_ORDER_DATE,
+        ReportType.GET_FLAT_FILE_ARCHIVED_ORDERS_DATA_BY_ORDER_DATE,
+        ReportType.GET_XML_ALL_ORDERS_DATA_BY_LAST_UPDATE,
+        ReportType.GET_XML_ALL_ORDERS_DATA_BY_ORDER_DATE,
+        ReportType.GET_FLAT_FILE_PENDING_ORDERS_DATA,
+        ReportType.GET_PENDING_ORDERS_DATA,
+        ReportType.GET_CONVERGED_FLAT_FILE_PENDING_ORDERS_DATA,
+        ReportType.GET_FLAT_FILE_RETURNS_DATA_BY_RETURN_DATE,
+        ReportType.GET_XML_RETURNS_DATA_BY_RETURN_DATE,
+        ReportType.GET_VAT_TRANSACTION_DATA,
+        ReportType.SC_VAT_TAX_REPORT,
+        ReportType.GET_FLAT_FILE_SALES_TAX_DATA,
+        ReportType.GET_ORDER_REPORT_DATA_SHIPPING,
+        ReportType.GET_FLAT_FILE_ORDER_REPORT_DATA_SHIPPING,
+    }
+
     def __init__(self, client: SPAPIClient):
         """
         Initialize Reports API client.
@@ -337,26 +357,38 @@ class SPAPIReports:
     def get_report_document(
         self,
         report_document_id: str,
+        report_type: str = None,
     ) -> Dict[str, Any]:
         """
         Get a report document.
         
         Args:
             report_document_id: Report document ID
+            report_type: Report type (used to determine if RDT is needed)
             
         Returns:
             Report document with download URL
         """
+        restricted_resources = None
+        if report_type in self.PII_REPORT_TYPES:
+            restricted_resources = [{
+                'method': 'GET',
+                'path': f'/reports/{self.API_VERSION}/documents/{report_document_id}',
+                'dataElements': []  # No data elements required for report documents
+            }]
+
         return self.client.get(
             f'/reports/{self.API_VERSION}/documents/{report_document_id}',
             operation='getReportDocument',
             add_marketplace=False,
+            restricted_resources=restricted_resources,
         )
     
     def download_report_document(
         self,
         report_document_id: str,
         decompress: bool = True,
+        report_type: str = None,
     ) -> bytes:
         """
         Download content from a report document.
@@ -364,12 +396,13 @@ class SPAPIReports:
         Args:
             report_document_id: Report document ID
             decompress: Whether to auto-decompress gzipped content
+            report_type: Report type (used to determine if RDT is needed)
             
         Returns:
             Report document content as bytes
         """
         # Get document info
-        doc = self.get_report_document(report_document_id)
+        doc = self.get_report_document(report_document_id, report_type=report_type)
         url = doc['url']
         compression = doc.get('compressionAlgorithm')
         
@@ -655,7 +688,10 @@ class SPAPIReports:
             raise SPAPIError(f"Report {report_id} has no document")
         
         # Download document
-        content = self.download_report_document(report_document_id)
+        content = self.download_report_document(
+            report_document_id,
+            report_type=report.get('reportType')
+        )
         
         if not parse:
             return content

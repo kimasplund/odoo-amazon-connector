@@ -4,6 +4,7 @@
 
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+from ..services import encryption
 
 
 class AmazonCredential(models.Model):
@@ -48,14 +49,26 @@ class AmazonCredential(models.Model):
         groups='amazon_connector.group_amazon_admin',
         help='Login with Amazon App Client ID',
     )
+    lwa_client_secret_encrypted = fields.Char(
+        string='LWA Client Secret (Encrypted)',
+        groups='amazon_connector.group_amazon_admin',
+    )
     lwa_client_secret = fields.Char(
         string='LWA Client Secret',
         groups='amazon_connector.group_amazon_admin',
+        compute='_compute_lwa_credentials',
+        inverse='_inverse_lwa_credentials',
         help='Login with Amazon App Client Secret',
+    )
+    refresh_token_encrypted = fields.Char(
+        string='Refresh Token (Encrypted)',
+        groups='amazon_connector.group_amazon_admin',
     )
     refresh_token = fields.Char(
         string='Refresh Token',
         groups='amazon_connector.group_amazon_admin',
+        compute='_compute_lwa_credentials',
+        inverse='_inverse_lwa_credentials',
         help='OAuth refresh token for SP-API authentication',
     )
 
@@ -65,9 +78,15 @@ class AmazonCredential(models.Model):
         groups='amazon_connector.group_amazon_admin',
         help='AWS IAM access key for request signing',
     )
+    aws_secret_key_encrypted = fields.Char(
+        string='AWS Secret Key (Encrypted)',
+        groups='amazon_connector.group_amazon_admin',
+    )
     aws_secret_key = fields.Char(
         string='AWS Secret Key',
         groups='amazon_connector.group_amazon_admin',
+        compute='_compute_aws_credentials',
+        inverse='_inverse_aws_credentials',
         help='AWS IAM secret key for request signing',
     )
     aws_role_arn = fields.Char(
@@ -109,6 +128,27 @@ class AmazonCredential(models.Model):
                     _('All LWA credentials (Client ID, Client Secret, Refresh Token) '
                       'must be provided together.')
                 )
+
+    # -------------------------------------------------------------------------
+    # COMPUTE METHODS
+    # -------------------------------------------------------------------------
+    def _compute_lwa_credentials(self):
+        for record in self:
+            record.lwa_client_secret = encryption.decrypt(self.env, record.lwa_client_secret_encrypted) if record.lwa_client_secret_encrypted else False
+            record.refresh_token = encryption.decrypt(self.env, record.refresh_token_encrypted) if record.refresh_token_encrypted else False
+
+    def _inverse_lwa_credentials(self):
+        for record in self:
+            record.lwa_client_secret_encrypted = encryption.encrypt(self.env, record.lwa_client_secret) if record.lwa_client_secret else False
+            record.refresh_token_encrypted = encryption.encrypt(self.env, record.refresh_token) if record.refresh_token else False
+
+    def _compute_aws_credentials(self):
+        for record in self:
+            record.aws_secret_key = encryption.decrypt(self.env, record.aws_secret_key_encrypted) if record.aws_secret_key_encrypted else False
+
+    def _inverse_aws_credentials(self):
+        for record in self:
+            record.aws_secret_key_encrypted = encryption.encrypt(self.env, record.aws_secret_key) if record.aws_secret_key else False
 
     # -------------------------------------------------------------------------
     # BUSINESS METHODS
