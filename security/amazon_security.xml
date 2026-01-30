@@ -76,7 +76,7 @@
         <record id="amazon_order_company_rule" model="ir.rule">
             <field name="name">Amazon Order: Multi-Company</field>
             <field name="model_id" ref="amazon_connector.model_amazon_order"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[('account_id.company_id', 'in', company_ids)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
@@ -84,7 +84,7 @@
         <record id="amazon_product_listing_company_rule" model="ir.rule">
             <field name="name">Amazon Product Listing: Multi-Company</field>
             <field name="model_id" ref="amazon_connector.model_amazon_product_listing"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[('account_id.company_id', 'in', company_ids)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
@@ -92,7 +92,7 @@
         <record id="amazon_fba_shipment_company_rule" model="ir.rule">
             <field name="name">Amazon FBA Shipment: Multi-Company</field>
             <field name="model_id" ref="amazon_connector.model_amazon_fba_shipment"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[('account_id.company_id', 'in', company_ids)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
@@ -100,7 +100,7 @@
         <record id="amazon_settlement_company_rule" model="ir.rule">
             <field name="name">Amazon Settlement: Multi-Company</field>
             <field name="model_id" ref="amazon_connector.model_amazon_settlement"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[('account_id.company_id', 'in', company_ids)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
