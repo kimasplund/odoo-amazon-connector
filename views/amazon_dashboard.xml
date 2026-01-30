@@ -172,7 +172,7 @@
     <menuitem 
         id="amazon_dashboard_menu"
         name="Dashboard"
-        parent="amazon_connector.amazon_root_menu"
+        parent="menu_amazon_root"
         action="amazon_dashboard_action"
         sequence="1"
         groups="amazon_connector.group_amazon_user"
