@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Root Amazon Menu - loaded first so other views can reference it -->
+    <menuitem id="menu_amazon_root"
+              name="Amazon"
+              web_icon="amazon_connector,static/description/icon.png"
+              sequence="45"/>
+</odoo>

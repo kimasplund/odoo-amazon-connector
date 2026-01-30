@@ -653,7 +653,7 @@
     
     <menuitem id="menu_amazon_pricing_root"
               name="Pricing"
-              parent="amazon_connector.menu_amazon_root"
+              parent="menu_amazon_root"
               sequence="35"/>
     
     <menuitem id="menu_amazon_pricing_recommendations"

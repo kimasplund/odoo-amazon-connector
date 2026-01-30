@@ -77,8 +77,8 @@ Enterprise-grade Amazon Selling Partner API (SP-API) integration providing:
         'data/amazon_cron_data.xml',
         'data/amazon_pricing_cron_data.xml',
         'data/mail_template_data.xml',
-        # Menus (load first so other views can reference them)
-        'views/menus.xml',
+        # Root menu (load first so other views can reference it)
+        'views/menu_root.xml',
         # Views
         'views/amazon_marketplace_views.xml',
         'views/amazon_account_views.xml',
@@ -94,6 +94,8 @@ Enterprise-grade Amazon Selling Partner API (SP-API) integration providing:
         'views/sale_order_views.xml',
         # Wizard Views
         'views/wizard_views.xml',
+        # Menus with action references (load last)
+        'views/menus.xml',
     ],
     'demo': [
         'demo/amazon_demo_data.xml',

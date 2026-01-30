@@ -2,13 +2,8 @@
 <odoo>
     <!-- ============================================================ -->
     <!-- Amazon Connector Menu Structure                               -->
+    <!-- Note: Root menu is in menu_root.xml (loaded first)           -->
     <!-- ============================================================ -->
-
-    <!-- Root Menu -->
-    <menuitem id="menu_amazon_root"
-              name="Amazon"
-              web_icon="odoo18_amazon_connector,static/description/icon.png"
-              sequence="45"/>
 
     <!-- ============================================================ -->
     <!-- Dashboard                                                     -->
