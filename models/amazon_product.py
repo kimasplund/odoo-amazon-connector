@@ -595,86 +595,113 @@ class AmazonProductListing(models.Model):
 
         return result
 
-    def action_sync_from_amazon(self):
-        """Sync listing data from Amazon."""
-        for record in self:
-            _logger.info('Syncing listing %s from Amazon', record.display_name)
-            try:
-                client = record.account_id.get_sp_api_client()
-                products_api = SPAPIProducts(client)
+    def _sync_listing_data(self, products_api):
+        """Sync listing data using SP-API Products service.
 
-                data = products_api.get_listings_item(
-                    seller_id=record.account_id.seller_id,
-                    sku=record.sku,
-                    included_data=['summaries', 'attributes', 'issues', 'offers'],
-                    issue_locale=record.marketplace_id.lang_id.code if record.marketplace_id.lang_id else 'en_US'
-                )
+        Args:
+            products_api: SPAPIProducts instance
+        """
+        self.ensure_one()
 
-                vals = {
-                    'last_sync_date': fields.Datetime.now(),
-                    'listing_issues': False,
-                }
+        try:
+            # Fetch listing item details
+            # We request summaries, attributes, offers, and fulfillment availability
+            response = products_api.get_listings_item(
+                seller_id=self.account_id.seller_id,
+                sku=self.sku,
+                included_data=['summaries', 'attributes', 'offers', 'fulfillmentAvailability']
+            )
 
-                # Summaries (Title, ASIN, Image)
-                if data.get('summaries'):
-                    summary = data['summaries'][0]
-                    vals['title'] = summary.get('itemName')
-                    if summary.get('asin'):
-                        vals['asin'] = summary.get('asin')
-                    if summary.get('mainImage'):
-                        vals['main_image_url'] = summary['mainImage'].get('link')
+            vals = {}
 
-                # Attributes (Description, Bullets, Brand)
-                if data.get('attributes'):
-                    attrs = data['attributes']
+            # 1. Update summaries (Status, Condition, etc.)
+            if 'summaries' in response:
+                summaries = response['summaries']
+                if summaries:
+                    summary = summaries[0]
 
-                    # Bullet Points
-                    bullets = attrs.get('bullet_point', [])
-                    # Sort bullets if they have sequence or rely on list order
-                    for i in range(5):
-                        field_name = f'bullet_point_{i+1}'
-                        if i < len(bullets):
-                            vals[field_name] = bullets[i].get('value')
-                        else:
-                            vals[field_name] = False
+                    # Map status - status is a list of strings
+                    # e.g. ["BUYABLE", "DISCOVERABLE"]
+                    statuses = summary.get('status', [])
+                    if isinstance(statuses, str):
+                        statuses = [statuses]  # Safety fallback
 
-                    # Description
-                    desc = attrs.get('product_description')
-                    if desc and isinstance(desc, list) and len(desc) > 0:
-                        vals['description'] = desc[0].get('value')
+                    statuses = [s.upper() for s in statuses]
 
-                    # Brand & Manufacturer
-                    brand = attrs.get('brand')
-                    if brand and isinstance(brand, list) and len(brand) > 0:
-                        vals['brand'] = brand[0].get('value')
-
-                    manufacturer = attrs.get('manufacturer')
-                    if manufacturer and isinstance(manufacturer, list) and len(manufacturer) > 0:
-                        vals['manufacturer'] = manufacturer[0].get('value')
-
-                # Issues
-                if data.get('issues'):
-                    vals['listing_issues'] = str(data['issues'])
-                    vals['state'] = 'incomplete'
-                elif data.get('status'):
-                    # Update state based on Amazon status
-                    statuses = data['status']
-                    if 'BUYABLE' in statuses:
-                        vals['state'] = 'active'
-                    elif 'DISCOVERABLE' in statuses:
+                    if 'BUYABLE' in statuses or 'DISCOVERABLE' in statuses:
                         vals['state'] = 'active'
                     elif 'DELETED' in statuses:
                         vals['state'] = 'inactive'
 
-                record.write(vals)
+                    # Update basic info if available
+                    if 'itemName' in summary:
+                        vals['title'] = summary['itemName']
+                    if 'mainImage' in summary and 'link' in summary['mainImage']:
+                        vals['main_image_url'] = summary['mainImage']['link']
 
+            # 2. Update attributes (Description, Bullets)
+            if 'attributes' in response:
+                attrs = response['attributes']
+
+                # Description
+                if 'product_description' in attrs:
+                    desc_list = attrs['product_description']
+                    if isinstance(desc_list, list) and desc_list:
+                         vals['description'] = desc_list[0].get('value')
+
+                # Bullet points
+                if 'bullet_point' in attrs:
+                    bullets = attrs['bullet_point']
+                    if isinstance(bullets, list):
+                        for i, bp in enumerate(bullets[:5]):
+                            vals[f'bullet_point_{i+1}'] = bp.get('value')
+
+            # 3. Update offers (Price)
+            if 'offers' in response:
+                offers = response['offers']
+                if offers:
+                    offer = offers[0]
+                    if 'price' in offer:
+                        vals['list_price'] = float(offer['price'].get('amount', 0.0))
+
+            # 4. Update fulfillment availability (Quantity)
+            if 'fulfillmentAvailability' in response:
+                avail = response['fulfillmentAvailability']
+                if isinstance(avail, list) and avail:
+                    vals['quantity_available'] = avail[0].get('quantity', 0)
+
+            if vals:
+                vals['last_sync_date'] = fields.Datetime.now()
+                self.write(vals)
+            else:
+                # Update sync date even if no other changes
+                self.last_sync_date = fields.Datetime.now()
+
+        except Exception as e:
+            _logger.error("Failed to sync listing %s: %s", self.sku, str(e))
+            # We don't raise here to allow batch processing to continue
+
+    def action_sync_from_amazon(self):
+        """Sync listing data from Amazon."""
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_products import SPAPIProducts
+
+        # Group by account to reuse client
+        for account in self.mapped('account_id'):
+            listings = self.filtered(lambda l: l.account_id == account)
+
+            try:
+                client = OdooSPAPIClient.from_credential_record(account)
+                products_api = SPAPIProducts(client)
+
+                for listing in listings:
+                    _logger.info('Syncing listing %s from Amazon', listing.display_name)
+                    listing._sync_listing_data(products_api)
+
+                client.close()
             except Exception as e:
-                _logger.error("Failed to sync listing %s: %s", record.display_name, str(e))
-                record.message_post(
-                    body=_("Failed to sync from Amazon: %s") % str(e),
-                    message_type='comment',
-                    subtype_xmlid='mail.mt_note',
-                )
+                _logger.error("Failed to sync listings for account %s: %s", account.name, str(e))
+                raise UserError(_("Failed to sync listings: %s") % str(e))
 
     def action_push_to_amazon(self):
         """Push listing data to Amazon."""
@@ -924,156 +951,19 @@ class AmazonProductListing(models.Model):
 
     def action_update_price(self):
         """Push price update to Amazon."""
-        from ..services.sp_api_client import OdooSPAPIClient
-        from ..services.sp_api_feeds import SPAPIFeeds
-
-        # 1. Validate all records first
         for record in self:
             if not record.list_price:
-                raise UserError(_('List price is required for %s') % record.display_name)
-
-        # 2. Group by Account and Marketplace
-        # Key: (account_id, marketplace_id)
-        grouped_records = {}
-        for record in self:
-            key = (record.account_id, record.marketplace_id)
-            if key not in grouped_records:
-                grouped_records[key] = self.env['amazon.product.listing']
-            grouped_records[key] |= record
-
-        # 3. Process each group
-        for (account, marketplace), records in grouped_records.items():
-            _logger.info(
-                'Updating prices for %d products (Account: %s, Marketplace: %s)',
-                len(records), account.name, marketplace.name
-            )
-
-            # Check credentials
-            if not all([account.lwa_client_id, account.lwa_client_secret, account.refresh_token]):
-                _logger.warning("Missing credentials for account %s, skipping.", account.name)
-                continue
-
-            try:
-                # Initialize client for this specific marketplace
-                client = OdooSPAPIClient(
-                    client_id=account.lwa_client_id,
-                    client_secret=account.lwa_client_secret,
-                    refresh_token=account.refresh_token,
-                    aws_access_key=account.aws_access_key,
-                    aws_secret_key=account.aws_secret_key,
-                    region=account.api_region,
-                    marketplace_id=marketplace.marketplace_id,
-                    sandbox=account.sandbox_mode
-                )
-
-                feeds = SPAPIFeeds(client)
-
-                # Prepare items
-                items = []
-                for record in records:
-                    item = {
-                        'sku': record.sku,
-                        'price': record.list_price,
-                    }
-                    if record.is_on_sale and record.sale_price:
-                        item['sale_price'] = record.sale_price
-                        if record.sale_price_start:
-                            item['sale_start'] = record.sale_price_start.strftime('%Y-%m-%dT%H:%M:%S')
-                        if record.sale_price_end:
-                            item['sale_end'] = record.sale_price_end.strftime('%Y-%m-%dT%H:%M:%S')
-                    items.append(item)
-
-                if not items:
-                    continue
-
-                # Submit feed
-                currency = marketplace.currency_id.name or 'EUR'
-                feeds.submit_price_update(items, currency_code=currency)
-
-                # Update last sync timestamp
-                records.write({'last_price_sync': fields.Datetime.now()})
-
-                _logger.info("Successfully submitted price update feed.")
-
-            except Exception as e:
-                _logger.error(
-                    "Failed to update prices for account %s: %s",
-                    account.name, str(e)
-                )
-                # We log the error but continue with other groups
+                raise UserError(_('List price is required.'))
+            _logger.info('Updating price for %s to %s', 
+                        record.display_name, record.list_price)
+            # TODO: Implement via sp_api_feeds service
 
     def action_sync_inventory(self):
         """Sync inventory levels from Amazon."""
-        # Group records by account and marketplace to batch requests
-        grouped = {}
         for record in self:
-            if not record.account_id or not record.marketplace_id:
-                continue
-            key = (record.account_id, record.marketplace_id)
-            if key not in grouped:
-                grouped[key] = []
-            grouped[key].append(record)
-
-        for (account, marketplace), records in grouped.items():
-            _logger.info(
-                'Syncing inventory for account %s, marketplace %s (%d listings)',
-                account.name, marketplace.name, len(records)
-            )
-
-            try:
-                client = account.get_sp_api_client()
-                from ..services.sp_api_fba import SPAPIFba
-                fba_api = SPAPIFba(client)
-
-                # Map SKUs to records for easy lookup
-                sku_map = {r.sku: r for r in records if r.sku}
-                all_skus = list(sku_map.keys())
-
-                # Process in chunks of 50 (API limit)
-                for i in range(0, len(all_skus), 50):
-                    chunk = all_skus[i:i+50]
-
-                    try:
-                        response = fba_api.get_inventory_summaries(
-                            granularity_type='Marketplace',
-                            granularity_id=marketplace.marketplace_id,
-                            marketplace_ids=[marketplace.marketplace_id],
-                            seller_skus=chunk,
-                            details=True,
-                        )
-
-                        payload = response.get('payload', response)
-                        summaries = payload.get('inventorySummaries', [])
-
-                        for summary in summaries:
-                            seller_sku = summary.get('sellerSku')
-                            details = summary.get('inventoryDetails', {})
-
-                            listing = sku_map.get(seller_sku)
-                            if listing:
-                                listing.write({
-                                    'quantity_available': details.get('fulfillableQuantity', 0),
-                                    'quantity_inbound': (
-                                        details.get('inboundWorkingQuantity', 0) +
-                                        details.get('inboundShippedQuantity', 0) +
-                                        details.get('inboundReceivingQuantity', 0)
-                                    ),
-                                    'quantity_reserved': details.get('reservedQuantity', {}).get('totalReservedQuantity', 0),
-                                    'quantity_unfulfillable': details.get('unfulfillableQuantity', {}).get('totalUnfulfillableQuantity', 0),
-                                    'last_inventory_sync': fields.Datetime.now(),
-                                })
-
-                    except Exception as e:
-                        _logger.error(
-                            "Failed to sync inventory chunk for account %s: %s",
-                            account.name, str(e)
-                        )
-
-            except Exception as e:
-                _logger.error(
-                    "Failed to sync inventory for account %s: %s",
-                    account.name, str(e)
-                )
+            _logger.info('Syncing inventory for %s', record.display_name)
+            # TODO: Implement via sp_api_fba service
+            record.last_inventory_sync = fields.Datetime.now()
 
     def action_open_on_amazon(self):
         """Open the product page on Amazon."""

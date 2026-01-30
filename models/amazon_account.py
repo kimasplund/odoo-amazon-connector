@@ -792,7 +792,32 @@ class AmazonAccount(models.Model):
     def _sync_products(self):
         """Sync product catalog from Amazon."""
         _logger.info('Syncing products for account: %s', self.name)
-        # TODO: Implement via sp_api_products service
+
+        try:
+            from ..services.sp_api_client import OdooSPAPIClient
+            from ..services.sp_api_products import SPAPIProducts
+
+            client = OdooSPAPIClient.from_credential_record(self)
+            products_api = SPAPIProducts(client)
+
+            listings = self.env['amazon.product.listing'].search([
+                ('account_id', '=', self.id)
+            ])
+
+            for listing in listings:
+                try:
+                    listing._sync_listing_data(products_api)
+                except Exception as e:
+                    _logger.error("Failed to sync listing %s: %s", listing.sku, str(e))
+
+            client.close()
+
+        except Exception as e:
+            _logger.error("Product sync failed for account %s: %s", self.name, str(e))
+            self.write({
+                'last_error': str(e),
+                'sync_status': 'error',
+            })
 
     def _sync_orders(self):
         """Sync orders from Amazon."""
