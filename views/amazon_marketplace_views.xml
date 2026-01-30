@@ -12,7 +12,7 @@
             <list string="Amazon Marketplaces" decoration-muted="not active">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
-                <field name="code"/>
+                <field name="marketplace_id"/>
                 <field name="country_id"/>
                 <field name="marketplace_id"/>
                 <field name="currency_id"/>
@@ -66,7 +66,7 @@
                     </div>
                     <group>
                         <group string="Marketplace Information">
-                            <field name="code" placeholder="e.g., DE"/>
+                            <field name="marketplace_id"/>
                             <field name="marketplace_id" placeholder="e.g., A1PA6795UKMFR9"/>
                             <field name="country_id" options="{'no_create': True}"/>
                             <field name="currency_id" options="{'no_create': True}"/>
@@ -124,7 +124,7 @@
         <field name="arch" type="xml">
             <kanban class="o_kanban_mobile" sample="1">
                 <field name="name"/>
-                <field name="code"/>
+                <field name="marketplace_id"/>
                 <field name="country_id"/>
                 <field name="currency_id"/>
                 <field name="active"/>
@@ -139,7 +139,7 @@
                                     <field name="name"/>
                                 </strong>
                                 <div class="text-muted">
-                                    <field name="code"/> - <field name="currency_id"/>
+                                    <field name="marketplace_id"/> - <field name="currency_id"/>
                                 </div>
                             </div>
                         </div>
@@ -169,7 +169,7 @@
         <field name="arch" type="xml">
             <search string="Search Marketplaces">
                 <field name="name"/>
-                <field name="code"/>
+                <field name="marketplace_id"/>
                 <field name="country_id"/>
                 <field name="marketplace_id"/>
                 <separator/>
