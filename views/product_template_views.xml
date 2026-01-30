@@ -28,11 +28,11 @@
                         <group string="Amazon Identifiers">
                             <field name="amazon_brand"/>
                             <field name="amazon_manufacturer"/>
-                            <field name="amazon_product_type"/>
+                            <field name="amazon_item_type"/>
                         </group>
                         <group string="Defaults">
-                            <field name="amazon_default_condition"/>
                             <field name="amazon_default_fulfillment"/>
+                            <field name="amazon_sync_enabled"/>
                         </group>
                     </group>
                     <group string="Listings">
@@ -52,17 +52,8 @@
                             </list>
                         </field>
                     </group>
-                    <group string="Content" col="1">
-                        <group string="Bullet Points">
-                            <field name="amazon_bullet_1" placeholder="Key feature 1"/>
-                            <field name="amazon_bullet_2" placeholder="Key feature 2"/>
-                            <field name="amazon_bullet_3" placeholder="Key feature 3"/>
-                            <field name="amazon_bullet_4" placeholder="Key feature 4"/>
-                            <field name="amazon_bullet_5" placeholder="Key feature 5"/>
-                        </group>
-                        <group string="Search Terms">
-                            <field name="amazon_search_terms" nolabel="1" placeholder="comma, separated, keywords"/>
-                        </group>
+                    <group string="Search Terms">
+                        <field name="amazon_search_terms" nolabel="1" placeholder="comma, separated, keywords"/>
                     </group>
                 </page>
             </page>
@@ -110,8 +101,8 @@
                         type="object" 
                         class="oe_stat_button" 
                         icon="fa-amazon"
-                        invisible="amazon_variant_listing_count == 0">
-                    <field name="amazon_variant_listing_count" widget="statinfo" string="Amazon"/>
+                        invisible="amazon_listing_count == 0">
+                    <field name="amazon_listing_count" widget="statinfo" string="Amazon"/>
                 </button>
             </div>
         </field>
