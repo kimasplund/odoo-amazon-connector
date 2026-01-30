@@ -17,7 +17,7 @@
                 <field name="marketplace_id"/>
                 <field name="currency_id"/>
                 <field name="region"/>
-                <field name="endpoint"/>
+                <field name="endpoint_url"/>
                 <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
@@ -73,7 +73,7 @@
                         </group>
                         <group string="Technical Configuration">
                             <field name="region" widget="selection"/>
-                            <field name="endpoint"/>
+                            <field name="endpoint_url"/>
                             <field name="sandbox_endpoint"/>
                             <field name="active"/>
                         </group>
