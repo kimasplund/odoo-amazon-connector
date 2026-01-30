@@ -200,3 +200,13 @@ class ProductTemplate(models.Model):
         return self.amazon_listing_ids.filtered(
             lambda l: l.account_id == account
         )
+
+
+class ProductProduct(models.Model):
+    """Extend product.product with Amazon integration fields."""
+    _inherit = 'product.product'
+
+    def action_view_amazon_listings(self):
+        """Open Amazon listings for this product variant."""
+        self.ensure_one()
+        return self.product_tmpl_id.action_view_amazon_listings()
