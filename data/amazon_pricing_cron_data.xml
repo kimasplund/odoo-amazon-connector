@@ -15,7 +15,6 @@
             <field name="interval_number">2</field>
             <field name="interval_type">hours</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">10</field>
         </record>
         
@@ -28,7 +27,6 @@
             <field name="interval_number">4</field>
             <field name="interval_type">hours</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">15</field>
         </record>
         
@@ -41,7 +39,6 @@
             <field name="interval_number">6</field>
             <field name="interval_type">hours</field>
             <field name="active">False</field>  <!-- Disabled by default - enable manually -->
-            <field name="doall">False</field>
             <field name="priority">20</field>
         </record>
         
@@ -54,7 +51,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">50</field>
         </record>
         
@@ -67,7 +63,6 @@
             <field name="interval_number">7</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">50</field>
         </record>
         

@@ -15,7 +15,6 @@
             <field name="interval_number">4</field>
             <field name="interval_type">hours</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">10</field>
         </record>
         
@@ -28,7 +27,6 @@
             <field name="interval_number">2</field>
             <field name="interval_type">hours</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">10</field>
         </record>
         
@@ -45,7 +43,6 @@
             <field name="interval_number">6</field>
             <field name="interval_type">hours</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">15</field>
         </record>
         
@@ -58,7 +55,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">20</field>
         </record>
         
@@ -75,7 +71,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">5</field>
             <field name="nextcall" eval="(DateTime.now().replace(hour=2, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
         </record>
@@ -89,7 +84,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">6</field>
             <field name="nextcall" eval="(DateTime.now().replace(hour=3, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
         </record>
@@ -103,7 +97,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">7</field>
             <field name="nextcall" eval="(DateTime.now().replace(hour=3, minute=30, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
         </record>
@@ -117,7 +110,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">8</field>
             <field name="nextcall" eval="(DateTime.now().replace(hour=6, minute=0, second=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
         </record>
@@ -131,7 +123,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">50</field>
         </record>
         
@@ -144,7 +135,6 @@
             <field name="interval_number">1</field>
             <field name="interval_type">weeks</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">30</field>
         </record>
         
@@ -161,7 +151,6 @@
             <field name="interval_number">7</field>
             <field name="interval_type">days</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
             <field name="priority">50</field>
         </record>
         
