@@ -4,6 +4,8 @@
 
 import base64
 import logging
+from typing import Any, Union, Optional
+
 from cryptography.fernet import Fernet
 from odoo import api, tools
 
@@ -12,7 +14,7 @@ _logger = logging.getLogger(__name__)
 CONFIG_PARAM_KEY = 'amazon_connector.encryption_key'
 
 
-def _get_fernet(env):
+def _get_fernet(env: Any) -> Fernet:
     """
     Get or create the Fernet encryption instance.
     The key is stored in ir.config_parameter.
@@ -35,7 +37,7 @@ def _get_fernet(env):
         return Fernet(Fernet.generate_key())
 
 
-def encrypt(env, data):
+def encrypt(env: Any, data: Union[str, bytes]) -> Union[str, bool]:
     """
     Encrypt string data.
 
@@ -51,16 +53,20 @@ def encrypt(env, data):
 
     try:
         f = _get_fernet(env)
+        data_bytes: bytes
         if isinstance(data, str):
-            data = data.encode('utf-8')
-        encrypted = f.encrypt(data)
+            data_bytes = data.encode('utf-8')
+        else:
+            data_bytes = data
+
+        encrypted = f.encrypt(data_bytes)
         return encrypted.decode('utf-8')
     except Exception as e:
         _logger.error("Encryption failed: %s", e)
         return False
 
 
-def decrypt(env, data):
+def decrypt(env: Any, data: Union[str, bytes]) -> Union[str, bool]:
     """
     Decrypt string data.
 
@@ -76,9 +82,13 @@ def decrypt(env, data):
 
     try:
         f = _get_fernet(env)
+        data_bytes: bytes
         if isinstance(data, str):
-            data = data.encode('utf-8')
-        decrypted = f.decrypt(data)
+            data_bytes = data.encode('utf-8')
+        else:
+            data_bytes = data
+
+        decrypted = f.decrypt(data_bytes)
         return decrypted.decode('utf-8')
     except Exception as e:
         # Don't log the actual data or too much info to avoid leaking info

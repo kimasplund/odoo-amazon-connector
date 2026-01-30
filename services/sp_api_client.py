@@ -18,7 +18,7 @@ import random
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Type, Union, TypedDict, cast
 from urllib.parse import urlencode, urljoin
 
 import requests
@@ -31,6 +31,32 @@ _logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# TypedDicts
+# ============================================================================
+
+class RateLimitConfig(TypedDict):
+    rate: float
+    burst: int
+
+
+class RateLimitBucket(TypedDict):
+    tokens: float
+    last_update: float
+
+
+class ErrorData(TypedDict, total=False):
+    code: str
+    message: str
+    details: str
+
+
+class SPAPIResponse(TypedDict, total=False):
+    payload: Any
+    errors: List[ErrorData]
+    pagination: Dict[str, str]
+
+
+# ============================================================================
 # Exception Classes
 # ============================================================================
 
@@ -40,10 +66,10 @@ class SPAPIError(Exception):
     def __init__(
         self,
         message: str,
-        error_code: str = None,
-        status_code: int = None,
-        response: dict = None,
-        request_id: str = None
+        error_code: Optional[str] = None,
+        status_code: Optional[int] = None,
+        response: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None
     ):
         super().__init__(message)
         self.error_code = error_code
@@ -51,7 +77,7 @@ class SPAPIError(Exception):
         self.response = response or {}
         self.request_id = request_id
     
-    def __str__(self):
+    def __str__(self) -> str:
         parts = [super().__str__()]
         if self.error_code:
             parts.append(f"[{self.error_code}]")
@@ -65,7 +91,7 @@ class SPAPIError(Exception):
 class SPAPIRateLimitError(SPAPIError):
     """Raised when rate limit is exceeded (HTTP 429)."""
     
-    def __init__(self, message: str, retry_after: int = None, **kwargs):
+    def __init__(self, message: str, retry_after: Optional[int] = None, **kwargs: Any):
         super().__init__(message, **kwargs)
         self.retry_after = retry_after
 
@@ -101,7 +127,7 @@ class SPAPIThrottledError(SPAPIError):
 
 
 # Amazon-specific error codes
-AMAZON_ERROR_CODES = {
+AMAZON_ERROR_CODES: Dict[str, Type[SPAPIError]] = {
     'InvalidInput': SPAPIInvalidInputError,
     'InvalidParameterValue': SPAPIInvalidInputError,
     'MissingParameter': SPAPIInvalidInputError,
@@ -131,7 +157,7 @@ class RateLimiter:
     
     # Default rate limits per operation (requests per second)
     # These are conservative defaults; actual limits vary by API
-    DEFAULT_LIMITS = {
+    DEFAULT_LIMITS: Dict[str, RateLimitConfig] = {
         'default': {'rate': 1.0, 'burst': 5},
         'getOrders': {'rate': 0.0167, 'burst': 20},  # 1 per minute, burst 20
         'getOrder': {'rate': 0.5, 'burst': 30},
@@ -153,18 +179,22 @@ class RateLimiter:
         'getMarketplaceParticipations': {'rate': 0.0167, 'burst': 15},
     }
     
-    def __init__(self, limits: Dict[str, Dict[str, float]] = None):
+    def __init__(self, limits: Optional[Dict[str, Dict[str, float]]] = None):
         """
         Initialize rate limiter.
         
         Args:
             limits: Optional custom rate limits per operation
         """
-        self.limits = {**self.DEFAULT_LIMITS, **(limits or {})}
-        self.tokens = defaultdict(lambda: {'tokens': 5, 'last_update': time.time()})
+        self.limits: Dict[str, RateLimitConfig] = self.DEFAULT_LIMITS.copy()
+        if limits:
+            for op, limit in limits.items():
+                self.limits[op] = cast(RateLimitConfig, limit)
+
+        self.tokens: DefaultDict[str, RateLimitBucket] = defaultdict(lambda: {'tokens': 5.0, 'last_update': time.time()})
         self._lock = None  # Will be set if threading is needed
     
-    def _get_limit(self, operation: str) -> Dict[str, float]:
+    def _get_limit(self, operation: str) -> RateLimitConfig:
         """Get rate limit config for an operation."""
         return self.limits.get(operation, self.limits['default'])
     
@@ -179,7 +209,7 @@ class RateLimiter:
         
         # Add tokens based on rate
         new_tokens = bucket['tokens'] + (elapsed * limit['rate'])
-        bucket['tokens'] = min(new_tokens, limit['burst'])
+        bucket['tokens'] = min(new_tokens, float(limit['burst']))
         
         return bucket['tokens']
     
@@ -196,12 +226,12 @@ class RateLimiter:
         tokens = self._replenish_tokens(operation)
         
         if tokens >= 1:
-            self.tokens[operation]['tokens'] -= 1
+            self.tokens[operation]['tokens'] -= 1.0
             return 0.0
         
         # Calculate wait time
         limit = self._get_limit(operation)
-        wait_time = (1 - tokens) / limit['rate']
+        wait_time = (1.0 - tokens) / limit['rate']
         
         return wait_time
     
@@ -220,9 +250,9 @@ class RateLimiter:
             )
             time.sleep(wait_time)
             # After waiting, consume the token
-            self.tokens[operation]['tokens'] -= 1
+            self.tokens[operation]['tokens'] -= 1.0
     
-    def update_from_headers(self, operation: str, headers: Dict[str, str]) -> None:
+    def update_from_headers(self, operation: str, headers: Dict[str, Any]) -> None:
         """
         Update rate limits based on response headers.
         
@@ -300,7 +330,7 @@ class RetryHandler:
             return False
         return status_code in self.retryable_status_codes
     
-    def get_delay(self, retry_count: int, retry_after: int = None) -> float:
+    def get_delay(self, retry_count: int, retry_after: Optional[int] = None) -> float:
         """
         Calculate delay before next retry.
         
@@ -312,7 +342,7 @@ class RetryHandler:
             Delay in seconds
         """
         if retry_after:
-            return min(retry_after, self.max_delay)
+            return min(float(retry_after), self.max_delay)
         
         # Exponential backoff
         delay = self.base_delay * (self.exponential_base ** retry_count)
@@ -324,7 +354,7 @@ class RetryHandler:
         
         return delay
     
-    def wait(self, retry_count: int, retry_after: int = None) -> None:
+    def wait(self, retry_count: int, retry_after: Optional[int] = None) -> None:
         """
         Wait before retrying.
         
@@ -360,12 +390,12 @@ class SPAPIClient:
         client_id: str,
         client_secret: str,
         refresh_token: str,
-        aws_access_key: str = None,
-        aws_secret_key: str = None,
+        aws_access_key: Optional[str] = None,
+        aws_secret_key: Optional[str] = None,
         region: str = 'eu',
-        marketplace_id: str = None,
+        marketplace_id: Optional[str] = None,
         sandbox: bool = False,
-        rate_limits: Dict[str, Dict[str, float]] = None,
+        rate_limits: Optional[Dict[str, Dict[str, float]]] = None,
         max_retries: int = 5,
         timeout: int = 30,
     ):
@@ -402,7 +432,7 @@ class SPAPIClient:
         )
         
         # Initialize rate limiter and retry handler
-        self.rate_limiter = RateLimiter(rate_limits)
+        self.rate_limiter = RateLimiter(limits=rate_limits)
         self.retry_handler = RetryHandler(max_retries=max_retries)
         
         # Initialize session with connection pooling
@@ -511,7 +541,7 @@ class SPAPIClient:
     def _raise_for_error(
         self,
         response: requests.Response,
-        request_id: str = None
+        request_id: Optional[str] = None
     ) -> None:
         """
         Raise appropriate exception based on response.
@@ -523,65 +553,82 @@ class SPAPIClient:
         error_code, error_message, error_data = self._parse_error_response(response)
         status_code = response.status_code
         
-        # Build error kwargs
-        error_kwargs = {
-            'error_code': error_code,
-            'status_code': status_code,
-            'response': error_data,
-            'request_id': request_id,
-        }
-        
         # Rate limiting
         if status_code == 429:
-            retry_after = int(response.headers.get('Retry-After', 1))
+            retry_val = response.headers.get('Retry-After', '1')
+            retry_after = int(retry_val) if retry_val.isdigit() else 1
             raise SPAPIRateLimitError(
                 f"Rate limit exceeded: {error_message}",
                 retry_after=retry_after,
-                **error_kwargs
+                error_code=error_code,
+                status_code=status_code,
+                response=error_data,
+                request_id=request_id
             )
         
         # Access denied
         if status_code == 403:
             raise SPAPIAccessDeniedError(
                 f"Access denied: {error_message}",
-                **error_kwargs
+                error_code=error_code,
+                status_code=status_code,
+                response=error_data,
+                request_id=request_id
             )
         
         # Bad request
         if status_code == 400:
             # Check for specific error codes
             exception_class = AMAZON_ERROR_CODES.get(error_code, SPAPIInvalidInputError)
-            raise exception_class(error_message, **error_kwargs)
+            raise exception_class(
+                error_message,
+                error_code=error_code,
+                status_code=status_code,
+                response=error_data,
+                request_id=request_id
+            )
         
         # Not found
         if status_code == 404:
             raise SPAPIResourceNotFoundError(
                 f"Resource not found: {error_message}",
-                **error_kwargs
+                error_code=error_code,
+                status_code=status_code,
+                response=error_data,
+                request_id=request_id
             )
         
         # Server errors
         if 500 <= status_code < 600:
             raise SPAPIServerError(
                 f"Server error: {error_message}",
-                **error_kwargs
+                error_code=error_code,
+                status_code=status_code,
+                response=error_data,
+                request_id=request_id
             )
         
         # Check for specific Amazon error codes
         exception_class = AMAZON_ERROR_CODES.get(error_code, SPAPIError)
-        raise exception_class(error_message, **error_kwargs)
+        raise exception_class(
+            error_message,
+            error_code=error_code,
+            status_code=status_code,
+            response=error_data,
+            request_id=request_id
+        )
     
     def request(
         self,
         method: str,
         path: str,
-        operation: str = None,
-        params: Dict[str, Any] = None,
-        data: Dict[str, Any] = None,
-        headers: Dict[str, str] = None,
+        operation: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
         add_marketplace: bool = True,
         raw_response: bool = False,
-        restricted_resources: List[Dict[str, Any]] = None,
+        restricted_resources: Optional[List[Dict[str, Any]]] = None,
     ) -> Union[Dict[str, Any], requests.Response]:
         """
         Make an authenticated request to SP-API.
@@ -626,7 +673,7 @@ class SPAPIClient:
                 access_token = rdt_resp.get('restrictedDataToken')
 
                 req_headers.update({
-                    'x-amz-access-token': access_token,
+                    'x-amz-access-token': access_token,  # type: ignore
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
                 })
@@ -678,7 +725,7 @@ class SPAPIClient:
                 )
                 
                 # Update rate limits from headers
-                self.rate_limiter.update_from_headers(operation, response.headers)
+                self.rate_limiter.update_from_headers(operation, dict(response.headers))
                 
                 # Check for success
                 if response.status_code in (200, 201, 202, 204):
@@ -692,7 +739,8 @@ class SPAPIClient:
                 if self.retry_handler.should_retry(response.status_code, retry_count):
                     retry_after = None
                     if response.status_code == 429:
-                        retry_after = int(response.headers.get('Retry-After', 1))
+                        val = response.headers.get('Retry-After', '1')
+                        retry_after = int(val) if val.isdigit() else 1
                     
                     _logger.warning(
                         "SP-API request failed (HTTP %d), retrying... (attempt %d/%d, RequestId: %s)",
@@ -738,67 +786,68 @@ class SPAPIClient:
     def get(
         self,
         path: str,
-        operation: str = None,
-        params: Dict[str, Any] = None,
-        **kwargs
+        operation: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """Make GET request."""
-        return self.request('GET', path, operation, params=params, **kwargs)
+        # Cast to generic dict to satisfy return type, as raw_response=False default
+        return cast(Dict[str, Any], self.request('GET', path, operation, params=params, **kwargs))
     
     def post(
         self,
         path: str,
-        operation: str = None,
-        data: Dict[str, Any] = None,
-        params: Dict[str, Any] = None,
-        **kwargs
+        operation: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """Make POST request."""
-        return self.request('POST', path, operation, params=params, data=data, **kwargs)
+        return cast(Dict[str, Any], self.request('POST', path, operation, params=params, data=data, **kwargs))
     
     def put(
         self,
         path: str,
-        operation: str = None,
-        data: Dict[str, Any] = None,
-        params: Dict[str, Any] = None,
-        **kwargs
+        operation: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """Make PUT request."""
-        return self.request('PUT', path, operation, params=params, data=data, **kwargs)
+        return cast(Dict[str, Any], self.request('PUT', path, operation, params=params, data=data, **kwargs))
     
     def patch(
         self,
         path: str,
-        operation: str = None,
-        data: Dict[str, Any] = None,
-        params: Dict[str, Any] = None,
-        **kwargs
+        operation: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """Make PATCH request."""
-        return self.request('PATCH', path, operation, params=params, data=data, **kwargs)
+        return cast(Dict[str, Any], self.request('PATCH', path, operation, params=params, data=data, **kwargs))
     
     def delete(
         self,
         path: str,
-        operation: str = None,
-        params: Dict[str, Any] = None,
-        **kwargs
+        operation: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """Make DELETE request."""
-        return self.request('DELETE', path, operation, params=params, **kwargs)
+        return cast(Dict[str, Any], self.request('DELETE', path, operation, params=params, **kwargs))
     
     def paginate(
         self,
         method: str,
         path: str,
-        operation: str = None,
-        params: Dict[str, Any] = None,
-        data: Dict[str, Any] = None,
-        result_key: str = None,
+        operation: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        result_key: Optional[str] = None,
         next_token_key: str = 'nextToken',
-        max_pages: int = None,
-        **kwargs
+        max_pages: Optional[int] = None,
+        **kwargs: Any
     ) -> List[Dict[str, Any]]:
         """
         Paginate through API results.
@@ -817,7 +866,7 @@ class SPAPIClient:
             List of all results
         """
         params = dict(params or {})
-        all_results = []
+        all_results: List[Dict[str, Any]] = []
         page_count = 0
         
         while True:
@@ -825,6 +874,11 @@ class SPAPIClient:
                 method, path, operation, params=params, data=data, **kwargs
             )
             
+            # Since raw_response defaults to False, response is Dict
+            if not isinstance(response, dict):
+                 # This shouldn't happen unless raw_response=True is passed in kwargs
+                 break
+
             # Extract results
             if result_key and result_key in response:
                 results = response[result_key]
@@ -842,7 +896,8 @@ class SPAPIClient:
             if not next_token:
                 # Also check in nested 'payload'
                 payload = response.get('payload', {})
-                next_token = payload.get(next_token_key)
+                if isinstance(payload, dict):
+                     next_token = payload.get(next_token_key)
             
             if not next_token:
                 break
@@ -852,21 +907,21 @@ class SPAPIClient:
                 break
             
             params[next_token_key] = next_token
-            _logger.debug("Fetching page %d (nextToken: %s...)", page_count + 1, next_token[:20])
+            _logger.debug("Fetching page %d (nextToken: %s...)", page_count + 1, str(next_token)[:20])
         
         _logger.info("Pagination complete: %d pages, %d results", page_count, len(all_results))
         return all_results
     
-    def close(self):
+    def close(self) -> None:
         """Clean up resources."""
         self._session.close()
         self.auth.close()
     
-    def __enter__(self):
+    def __enter__(self) -> "SPAPIClient":
         """Context manager entry."""
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         self.close()
 
@@ -886,7 +941,7 @@ class OdooSPAPIClient(SPAPIClient):
     """
     
     @classmethod
-    def from_credential_record(cls, credential, sandbox: bool = None):
+    def from_credential_record(cls, credential: Any, sandbox: Optional[bool] = None) -> "OdooSPAPIClient":
         """
         Create client from Odoo amazon.credential record.
         
@@ -913,13 +968,13 @@ class OdooSPAPIClient(SPAPIClient):
     
     def log_api_call(
         self,
-        env,
+        env: Any,
         operation: str,
         success: bool,
-        request_data: dict = None,
-        response_data: dict = None,
-        error_message: str = None
-    ):
+        request_data: Optional[Dict[str, Any]] = None,
+        response_data: Optional[Dict[str, Any]] = None,
+        error_message: Optional[str] = None
+    ) -> None:
         """
         Log API call to Odoo for debugging/audit.
         

@@ -7,11 +7,34 @@ Handles:
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, TypedDict, cast
 
 from .sp_api_client import SPAPIClient
 
 _logger = logging.getLogger(__name__)
+
+
+class Marketplace(TypedDict):
+    id: str
+    name: str
+    countryCode: str
+    defaultCurrencyCode: str
+    defaultLanguageCode: str
+    domainName: str
+
+
+class Participation(TypedDict):
+    isParticipating: bool
+    hasSuspendedListings: bool
+
+
+class MarketplaceParticipation(TypedDict):
+    marketplace: Marketplace
+    participation: Participation
+
+
+class GetMarketplaceParticipationsPayload(TypedDict):
+    payload: List[MarketplaceParticipation]
 
 
 class SPAPISellers:
@@ -33,14 +56,14 @@ class SPAPISellers:
         """
         self.client = client
 
-    def get_marketplace_participations(self) -> Dict[str, Any]:
+    def get_marketplace_participations(self) -> GetMarketplaceParticipationsPayload:
         """
         Returns a list of marketplaces that the seller can participate in.
 
         Returns:
             Marketplace participations
         """
-        return self.client.get(
+        return cast(GetMarketplaceParticipationsPayload, self.client.get(
             f'/sellers/{self.API_VERSION}/marketplaceParticipations',
             operation='getMarketplaceParticipations',
-        )
+        ))

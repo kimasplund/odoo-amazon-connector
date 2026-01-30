@@ -18,12 +18,90 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
 from .sp_api_client import SPAPIClient, OdooSPAPIClient, SPAPIError
 
 _logger = logging.getLogger(__name__)
 
+
+# ============================================================================
+# TypedDicts
+# ============================================================================
+
+class Money(TypedDict):
+    amount: float
+    currency: Optional[str]
+
+
+class OfferListingCount(TypedDict):
+    condition: str
+    count: int
+
+
+class SalesRank(TypedDict):
+    category_id: str
+    rank: int
+
+
+class CompetitivePrice(TypedDict):
+    competitive_price_id: str
+    belongs_to_requester: bool
+    condition: str
+    subcondition: str
+    listing_price: Optional[Money]
+    shipping: Optional[Money]
+    landed_price: Optional[Money]
+
+
+class CompetitivePricing(TypedDict):
+    asin: str
+    sku: str
+    marketplace_id: str
+    competitive_prices: List[CompetitivePrice]
+    number_of_offer_listings: List[OfferListingCount]
+    trade_in_value: Optional[Money]
+    sales_rankings: List[SalesRank]
+
+
+class ShippingTime(TypedDict):
+    min_hours: int
+    max_hours: int
+    availability_type: str
+    available_date: str
+
+
+class PrimeInformation(TypedDict):
+    is_prime: bool
+    is_national_prime: bool
+
+
+class Offer(TypedDict, total=False):
+    seller_id: str
+    subcondition: str
+    seller_feedback_rating: Dict[str, Any]
+    shipping_time: ShippingTime
+    listing_price: Money
+    shipping: Money
+    is_fba: bool
+    is_featured_merchant: bool
+    is_buy_box_winner: bool
+    prime_information: PrimeInformation
+    ships_from: Dict[str, str]
+
+
+class ItemOffers(TypedDict):
+    asin: str
+    marketplace_id: str
+    item_condition: str
+    status: str
+    summary: Any
+    offers: List[Offer]
+
+
+# ============================================================================
+# SPAPIPricingService Class
+# ============================================================================
 
 class SPAPIPricingService:
     """
@@ -152,19 +230,19 @@ class SPAPIPricingService:
         
         return self._parse_competitive_pricing(response)
     
-    def _parse_competitive_pricing(self, response: Dict) -> Dict[str, Any]:
+    def _parse_competitive_pricing(self, response: Dict[str, Any]) -> Dict[str, Any]:
         """Parse competitive pricing response for single item."""
         payload = response.get('payload', [])
         if payload:
             return self._parse_competitive_pricing_item(payload[0])
         return {}
     
-    def _parse_competitive_pricing_item(self, item: Dict) -> Dict[str, Any]:
+    def _parse_competitive_pricing_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         """Parse a single competitive pricing item."""
         product = item.get('Product', {})
         identifiers = product.get('Identifiers', {})
         
-        result = {
+        result: Dict[str, Any] = {
             'asin': identifiers.get('MarketplaceASIN', {}).get('ASIN'),
             'sku': identifiers.get('SKUIdentifier', {}).get('SellerSKU'),
             'marketplace_id': identifiers.get('MarketplaceASIN', {}).get('MarketplaceId'),
@@ -178,7 +256,7 @@ class SPAPIPricingService:
         competitive_pricing = product.get('CompetitivePricing', {})
         
         for cp in competitive_pricing.get('CompetitivePrices', []):
-            price_data = {
+            price_data: Dict[str, Any] = {
                 'competitive_price_id': cp.get('CompetitivePriceId'),
                 'belongs_to_requester': cp.get('belongsToRequester', False),
                 'condition': cp.get('condition'),
@@ -300,11 +378,11 @@ class SPAPIPricingService:
         
         return self._parse_item_offers(response)
     
-    def _parse_item_offers(self, response: Dict) -> Dict[str, Any]:
+    def _parse_item_offers(self, response: Dict[str, Any]) -> Dict[str, Any]:
         """Parse item/listing offers response."""
         payload = response.get('payload', {})
         
-        result = {
+        result: Dict[str, Any] = {
             'asin': payload.get('ASIN'),
             'marketplace_id': payload.get('MarketplaceId'),
             'item_condition': payload.get('ItemCondition'),
@@ -335,7 +413,7 @@ class SPAPIPricingService:
             
             # Buy Box prices
             for bbp in summary.get('BuyBoxPrices', []):
-                bb_data = {
+                bb_data: Dict[str, Any] = {
                     'condition': bbp.get('condition'),
                     'listing_price': None,
                     'shipping': None,
@@ -367,7 +445,7 @@ class SPAPIPricingService:
             
             # Lowest prices
             for lp in summary.get('LowestPrices', []):
-                lp_data = {
+                lp_data: Dict[str, Any] = {
                     'condition': lp.get('condition'),
                     'fulfillment_channel': lp.get('fulfillmentChannel'),
                     'listing_price': None,
@@ -405,7 +483,7 @@ class SPAPIPricingService:
         
         # Individual offers
         for offer in payload.get('Offers', []):
-            offer_data = {
+            offer_data: Dict[str, Any] = {
                 'seller_id': offer.get('SellerId'),
                 'subcondition': offer.get('SubCondition'),
                 'seller_feedback_rating': None,
@@ -523,12 +601,12 @@ class SPAPIPricingService:
         
         return all_results
     
-    def _parse_pricing_item(self, item: Dict) -> Dict[str, Any]:
+    def _parse_pricing_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         """Parse a pricing response item."""
         product = item.get('Product', {})
         identifiers = product.get('Identifiers', {})
         
-        result = {
+        result: Dict[str, Any] = {
             'asin': identifiers.get('MarketplaceASIN', {}).get('ASIN'),
             'sku': identifiers.get('SKUIdentifier', {}).get('SellerSKU'),
             'offers': [],
@@ -536,7 +614,7 @@ class SPAPIPricingService:
         }
         
         for offer in product.get('Offers', []):
-            offer_data = {
+            offer_data: Dict[str, Any] = {
                 'offer_type': offer.get('offerType'),
                 'buying_price': None,
                 'regular_price': None,
@@ -564,7 +642,7 @@ class SPAPIPricingService:
         
         return result
     
-    def _parse_money(self, money: Dict) -> Optional[Dict]:
+    def _parse_money(self, money: Optional[Dict[str, Any]]) -> Optional[Money]:
         """Parse money field."""
         if not money:
             return None
@@ -591,7 +669,7 @@ class SPAPIPricingService:
         """
         offers_data = self.get_item_offers(asin, item_condition='New')
         
-        result = {
+        result: Dict[str, Any] = {
             'asin': asin,
             'has_buy_box': False,
             'buy_box_price': None,
@@ -631,7 +709,7 @@ class SPAPIPricingService:
     # ODOO INTEGRATION
     # =========================================================================
     
-    def sync_competitor_prices(self, env, listing):
+    def sync_competitor_prices(self, env: Any, listing: Any) -> List[Any]:
         """
         Sync competitor prices to Odoo.
         
@@ -725,7 +803,7 @@ class SPAPIPricingFeedService:
     prices must be updated via feed submission.
     """
     
-    def __init__(self, client: SPAPIClient, feeds_service=None):
+    def __init__(self, client: SPAPIClient, feeds_service: Any = None):
         """
         Initialize pricing feed service.
         
@@ -738,11 +816,12 @@ class SPAPIPricingFeedService:
         self._feeds_service = feeds_service
     
     @property
-    def feeds_service(self):
+    def feeds_service(self) -> Any:
         """Lazy-load feeds service."""
         if self._feeds_service is None:
-            from .sp_api_feeds import SPAPIFeedService
-            self._feeds_service = SPAPIFeedService(self.client)
+            # Type ignore because of circular dependency or dynamic import
+            from .sp_api_feeds import SPAPIFeeds  # type: ignore
+            self._feeds_service = SPAPIFeeds(self.client)
         return self._feeds_service
     
     def submit_price_update(
@@ -750,11 +829,11 @@ class SPAPIPricingFeedService:
         sku: str,
         price: float,
         currency: str = 'EUR',
-        min_price: float = None,
-        max_price: float = None,
-        sale_price: float = None,
-        sale_start: datetime = None,
-        sale_end: datetime = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        sale_price: Optional[float] = None,
+        sale_start: Optional[datetime] = None,
+        sale_end: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Submit a price update for a single SKU.
@@ -784,9 +863,8 @@ class SPAPIPricingFeedService:
         }])
         
         return self.feeds_service.submit_feed(
-            feed_content=feed_content,
+            content=feed_content,
             feed_type='POST_PRODUCT_PRICING_DATA',
-            content_type='text/xml',
         )
     
     def submit_bulk_price_update(
@@ -805,12 +883,11 @@ class SPAPIPricingFeedService:
         feed_content = self._build_price_feed(price_updates)
         
         return self.feeds_service.submit_feed(
-            feed_content=feed_content,
+            content=feed_content,
             feed_type='POST_PRODUCT_PRICING_DATA',
-            content_type='text/xml',
         )
     
-    def _build_price_feed(self, price_updates: List[Dict]) -> str:
+    def _build_price_feed(self, price_updates: List[Dict[str, Any]]) -> str:
         """
         Build XML feed content for price updates.
         
@@ -879,7 +956,7 @@ class SPAPIPricingFeedService:
 # ODOO SERVICE FACTORY
 # ============================================================================
 
-def get_pricing_service(credential) -> SPAPIPricingService:
+def get_pricing_service(credential: Any) -> SPAPIPricingService:
     """
     Create pricing service from Odoo credential record.
     
@@ -893,7 +970,7 @@ def get_pricing_service(credential) -> SPAPIPricingService:
     return SPAPIPricingService(client)
 
 
-def get_pricing_feed_service(credential) -> SPAPIPricingFeedService:
+def get_pricing_feed_service(credential: Any) -> SPAPIPricingFeedService:
     """
     Create pricing feed service from Odoo credential record.
     

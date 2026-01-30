@@ -11,7 +11,7 @@ Handles:
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TypedDict
 from enum import Enum
 
 from .sp_api_client import SPAPIClient, SPAPIError
@@ -93,6 +93,77 @@ class ShippingSpeedCategory(str, Enum):
     SCHEDULED_DELIVERY = "ScheduledDelivery"
 
 
+# ============================================================================
+# TypedDicts
+# ============================================================================
+
+class InventoryDetails(TypedDict, total=False):
+    fulfillableQuantity: int
+    inboundWorkingQuantity: int
+    inboundShippedQuantity: int
+    inboundReceivingQuantity: int
+    reservedQuantity: Dict[str, int]
+    researchingQuantity: Dict[str, int]
+    unfulfillableQuantity: Dict[str, int]
+
+
+class InventorySummary(TypedDict, total=False):
+    asin: str
+    fnSku: str
+    sellerSku: str
+    condition: str
+    inventoryDetails: InventoryDetails
+    lastUpdatedTime: str
+    productName: str
+    totalQuantity: int
+
+
+class Address(TypedDict, total=False):
+    name: str
+    addressLine1: str
+    addressLine2: str
+    addressLine3: str
+    city: str
+    countryCode: str
+    postalCode: str
+    stateOrProvinceCode: str
+    districtOrCounty: str
+    phone: str
+
+
+class PrepDetail(TypedDict):
+    PrepInstruction: str
+    PrepOwner: str
+
+
+class InboundShipmentItem(TypedDict, total=False):
+    SellerSKU: str
+    QuantityShipped: int
+    QuantityInCase: int
+    PrepDetailsList: List[PrepDetail]
+
+
+class Money(TypedDict):
+    CurrencyCode: str
+    Amount: float
+
+
+class FulfillmentOrderItem(TypedDict, total=False):
+    sellerSku: str
+    sellerFulfillmentOrderItemId: str
+    quantity: int
+    giftMessage: str
+    displayableComment: str
+    fulfillmentNetworkSku: str
+    perUnitDeclaredValue: Money
+    perUnitPrice: Money
+    perUnitTax: Money
+
+
+# ============================================================================
+# SPAPIFba Class
+# ============================================================================
+
 class SPAPIFba:
     """
     Amazon FBA API Client
@@ -125,12 +196,12 @@ class SPAPIFba:
     def get_inventory_summaries(
         self,
         granularity_type: Union[str, InventoryGranularity] = InventoryGranularity.MARKETPLACE,
-        granularity_id: str = None,
-        start_date_time: Union[datetime, str] = None,
-        seller_skus: List[str] = None,
-        seller_sku: str = None,
-        next_token: str = None,
-        marketplace_ids: List[str] = None,
+        granularity_id: Optional[str] = None,
+        start_date_time: Union[datetime, str, None] = None,
+        seller_skus: Optional[List[str]] = None,
+        seller_sku: Optional[str] = None,
+        next_token: Optional[str] = None,
+        marketplace_ids: Optional[List[str]] = None,
         details: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -149,7 +220,7 @@ class SPAPIFba:
         Returns:
             Inventory summaries
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -160,7 +231,7 @@ class SPAPIFba:
         
         granularity = granularity_type.value if isinstance(granularity_type, InventoryGranularity) else granularity_type
         
-        params = {
+        params: Dict[str, Any] = {
             'granularityType': granularity,
             'granularityId': granularity_id or self.client.marketplace_id,
             'details': str(details).lower(),
@@ -189,9 +260,9 @@ class SPAPIFba:
     
     def get_inventory_summaries_all(
         self,
-        max_pages: int = None,
-        **kwargs
-    ) -> List[Dict[str, Any]]:
+        max_pages: Optional[int] = None,
+        **kwargs: Any
+    ) -> List[InventorySummary]:
         """
         Get all FBA inventory summaries with pagination.
         
@@ -202,8 +273,8 @@ class SPAPIFba:
         Returns:
             List of all inventory summaries
         """
-        all_summaries = []
-        next_token = None
+        all_summaries: List[InventorySummary] = []
+        next_token: Optional[str] = None
         page_count = 0
         
         while True:
@@ -237,8 +308,8 @@ class SPAPIFba:
     
     def get_inbound_guidance(
         self,
-        seller_sku_list: List[str] = None,
-        asin_list: List[str] = None,
+        seller_sku_list: Optional[List[str]] = None,
+        asin_list: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Get inbound guidance for items.
@@ -250,7 +321,7 @@ class SPAPIFba:
         Returns:
             Inbound guidance information
         """
-        params = {}
+        params: Dict[str, str] = {}
         
         if seller_sku_list:
             params['SellerSKUList'] = ','.join(seller_sku_list)
@@ -265,7 +336,7 @@ class SPAPIFba:
     
     def create_inbound_shipment_plan(
         self,
-        ship_from_address: Dict[str, Any],
+        ship_from_address: Address,
         inbound_shipment_plan_request_items: List[Dict[str, Any]],
         label_prep_preference: str = "SELLER_LABEL",
     ) -> Dict[str, Any]:
@@ -296,7 +367,7 @@ class SPAPIFba:
         self,
         shipment_id: str,
         inbound_shipment_header: Dict[str, Any],
-        inbound_shipment_items: List[Dict[str, Any]],
+        inbound_shipment_items: List[InboundShipmentItem],
     ) -> Dict[str, Any]:
         """
         Create an inbound shipment from a shipment plan.
@@ -324,7 +395,7 @@ class SPAPIFba:
         self,
         shipment_id: str,
         inbound_shipment_header: Dict[str, Any],
-        inbound_shipment_items: List[Dict[str, Any]],
+        inbound_shipment_items: List[InboundShipmentItem],
     ) -> Dict[str, Any]:
         """
         Update an existing inbound shipment.
@@ -350,12 +421,12 @@ class SPAPIFba:
     
     def get_shipments(
         self,
-        shipment_status_list: List[Union[str, ShipmentStatus]] = None,
-        shipment_id_list: List[str] = None,
-        last_updated_after: Union[datetime, str] = None,
-        last_updated_before: Union[datetime, str] = None,
+        shipment_status_list: Optional[List[Union[str, ShipmentStatus]]] = None,
+        shipment_id_list: Optional[List[str]] = None,
+        last_updated_after: Union[datetime, str, None] = None,
+        last_updated_before: Union[datetime, str, None] = None,
         query_type: str = "SHIPMENT",
-        next_token: str = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get inbound shipments.
@@ -371,7 +442,7 @@ class SPAPIFba:
         Returns:
             Shipments list
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -380,7 +451,7 @@ class SPAPIFba:
                 return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
             return dt
         
-        params = {
+        params: Dict[str, str] = {
             'QueryType': query_type,
         }
         
@@ -390,9 +461,9 @@ class SPAPIFba:
         if shipment_id_list:
             params['ShipmentIdList'] = ','.join(shipment_id_list)
         if last_updated_after:
-            params['LastUpdatedAfter'] = format_datetime(last_updated_after)
+            params['LastUpdatedAfter'] = format_datetime(last_updated_after) or ""
         if last_updated_before:
-            params['LastUpdatedBefore'] = format_datetime(last_updated_before)
+            params['LastUpdatedBefore'] = format_datetime(last_updated_before) or ""
         if next_token:
             params['NextToken'] = next_token
         
@@ -404,11 +475,11 @@ class SPAPIFba:
     
     def get_shipment_items(
         self,
-        shipment_id: str = None,
-        last_updated_after: Union[datetime, str] = None,
-        last_updated_before: Union[datetime, str] = None,
+        shipment_id: Optional[str] = None,
+        last_updated_after: Union[datetime, str, None] = None,
+        last_updated_before: Union[datetime, str, None] = None,
         query_type: str = "SHIPMENT",
-        next_token: str = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get items in an inbound shipment.
@@ -423,7 +494,7 @@ class SPAPIFba:
         Returns:
             Shipment items
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -432,16 +503,16 @@ class SPAPIFba:
                 return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
             return dt
         
-        params = {
+        params: Dict[str, str] = {
             'QueryType': query_type,
         }
         
         if shipment_id:
             params['ShipmentId'] = shipment_id
         if last_updated_after:
-            params['LastUpdatedAfter'] = format_datetime(last_updated_after)
+            params['LastUpdatedAfter'] = format_datetime(last_updated_after) or ""
         if last_updated_before:
-            params['LastUpdatedBefore'] = format_datetime(last_updated_before)
+            params['LastUpdatedBefore'] = format_datetime(last_updated_before) or ""
         if next_token:
             params['NextToken'] = next_token
         
@@ -454,8 +525,8 @@ class SPAPIFba:
     def get_prep_instructions(
         self,
         ship_to_country_code: str,
-        seller_sku_list: List[str] = None,
-        asin_list: List[str] = None,
+        seller_sku_list: Optional[List[str]] = None,
+        asin_list: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Get prep instructions for items.
@@ -488,11 +559,11 @@ class SPAPIFba:
         shipment_id: str,
         page_type: str,
         label_type: str,
-        number_of_packages: int = None,
-        package_labels_to_print: List[str] = None,
-        number_of_pallets: int = None,
-        page_size: int = None,
-        page_start_index: int = None,
+        number_of_packages: Optional[int] = None,
+        package_labels_to_print: Optional[List[str]] = None,
+        number_of_pallets: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_start_index: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Get labels for an inbound shipment.
@@ -510,7 +581,7 @@ class SPAPIFba:
         Returns:
             Labels data (PDF or PNG)
         """
-        params = {
+        params: Dict[str, Any] = {
             'PageType': page_type,
             'LabelType': label_type,
         }
@@ -610,12 +681,12 @@ class SPAPIFba:
     
     def get_fulfillment_preview(
         self,
-        address: Dict[str, Any],
+        address: Address,
         items: List[Dict[str, Any]],
-        shipping_speed_categories: List[Union[str, ShippingSpeedCategory]] = None,
+        shipping_speed_categories: Optional[List[Union[str, ShippingSpeedCategory]]] = None,
         include_cod_fulfillment_preview: bool = False,
         include_delivery_windows: bool = False,
-        feature_constraints: List[Dict[str, Any]] = None,
+        feature_constraints: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Get fulfillment preview for multi-channel order.
@@ -631,7 +702,7 @@ class SPAPIFba:
         Returns:
             Fulfillment previews
         """
-        data = {
+        data: Dict[str, Any] = {
             'address': address,
             'items': items,
         }
@@ -659,14 +730,14 @@ class SPAPIFba:
         displayable_order_date: Union[datetime, str],
         displayable_order_comment: str,
         shipping_speed_category: Union[str, ShippingSpeedCategory],
-        destination_address: Dict[str, Any],
+        destination_address: Address,
         items: List[Dict[str, Any]],
         fulfillment_action: Union[str, FulfillmentAction] = FulfillmentAction.SHIP,
         fulfillment_policy: Union[str, FulfillmentPolicy] = FulfillmentPolicy.FILL_OR_KILL,
-        notification_emails: List[str] = None,
-        cod_settings: Dict[str, Any] = None,
-        delivery_window: Dict[str, Any] = None,
-        feature_constraints: List[Dict[str, Any]] = None,
+        notification_emails: Optional[List[str]] = None,
+        cod_settings: Optional[Dict[str, Any]] = None,
+        delivery_window: Optional[Dict[str, Any]] = None,
+        feature_constraints: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Create a multi-channel fulfillment order.
@@ -689,7 +760,7 @@ class SPAPIFba:
         Returns:
             Created fulfillment order
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str]) -> str:
             if isinstance(dt, datetime):
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
@@ -700,7 +771,7 @@ class SPAPIFba:
         action = fulfillment_action.value if isinstance(fulfillment_action, FulfillmentAction) else fulfillment_action
         policy = fulfillment_policy.value if isinstance(fulfillment_policy, FulfillmentPolicy) else fulfillment_policy
         
-        data = {
+        data: Dict[str, Any] = {
             'sellerFulfillmentOrderId': seller_fulfillment_order_id,
             'displayableOrderId': displayable_order_id,
             'displayableOrderDate': format_datetime(displayable_order_date),
@@ -747,8 +818,8 @@ class SPAPIFba:
     
     def list_all_fulfillment_orders(
         self,
-        query_start_date: Union[datetime, str] = None,
-        next_token: str = None,
+        query_start_date: Union[datetime, str, None] = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         List all fulfillment orders.
@@ -760,7 +831,7 @@ class SPAPIFba:
         Returns:
             List of fulfillment orders
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -785,16 +856,16 @@ class SPAPIFba:
     def update_fulfillment_order(
         self,
         seller_fulfillment_order_id: str,
-        displayable_order_id: str = None,
-        displayable_order_date: Union[datetime, str] = None,
-        displayable_order_comment: str = None,
-        shipping_speed_category: Union[str, ShippingSpeedCategory] = None,
-        destination_address: Dict[str, Any] = None,
-        fulfillment_action: Union[str, FulfillmentAction] = None,
-        fulfillment_policy: Union[str, FulfillmentPolicy] = None,
-        notification_emails: List[str] = None,
-        items: List[Dict[str, Any]] = None,
-        feature_constraints: List[Dict[str, Any]] = None,
+        displayable_order_id: Optional[str] = None,
+        displayable_order_date: Union[datetime, str, None] = None,
+        displayable_order_comment: Optional[str] = None,
+        shipping_speed_category: Union[str, ShippingSpeedCategory, None] = None,
+        destination_address: Optional[Address] = None,
+        fulfillment_action: Union[str, FulfillmentAction, None] = None,
+        fulfillment_policy: Union[str, FulfillmentPolicy, None] = None,
+        notification_emails: Optional[List[str]] = None,
+        items: Optional[List[Dict[str, Any]]] = None,
+        feature_constraints: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Update a fulfillment order.
@@ -815,7 +886,7 @@ class SPAPIFba:
         Returns:
             Update result
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -824,7 +895,7 @@ class SPAPIFba:
                 return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
             return dt
         
-        data = {}
+        data: Dict[str, Any] = {}
         
         if displayable_order_id:
             data['displayableOrderId'] = displayable_order_id
@@ -901,7 +972,7 @@ class SPAPIFba:
         self,
         seller_sku: str,
         language: str = "en_US",
-        seller_fulfillment_order_id: str = None,
+        seller_fulfillment_order_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get return reason codes.
@@ -914,8 +985,6 @@ class SPAPIFba:
         Returns:
             Return reason codes
         """
-        import urllib.parse
-        
         params = {
             'sellerSku': seller_sku,
             'language': language,
@@ -970,7 +1039,7 @@ class SPAPIFba:
     def get_feature_inventory(
         self,
         feature_name: str,
-        next_token: str = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get inventory that is eligible for a feature.
@@ -1025,13 +1094,13 @@ class SPAPIFba:
         address_line_1: str,
         city: str,
         country_code: str,
-        postal_code: str = None,
-        address_line_2: str = None,
-        address_line_3: str = None,
-        state_or_province_code: str = None,
-        district_or_county: str = None,
-        phone: str = None,
-    ) -> Dict[str, Any]:
+        postal_code: Optional[str] = None,
+        address_line_2: Optional[str] = None,
+        address_line_3: Optional[str] = None,
+        state_or_province_code: Optional[str] = None,
+        district_or_county: Optional[str] = None,
+        phone: Optional[str] = None,
+    ) -> Address:
         """
         Build an address dictionary.
         
@@ -1050,7 +1119,7 @@ class SPAPIFba:
         Returns:
             Address dictionary
         """
-        address = {
+        address: Address = {
             'name': name,
             'addressLine1': address_line_1,
             'city': city,
@@ -1076,9 +1145,9 @@ class SPAPIFba:
         self,
         seller_sku: str,
         quantity_shipped: int,
-        quantity_in_case: int = None,
-        prep_details_list: List[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        quantity_in_case: Optional[int] = None,
+        prep_details_list: Optional[List[PrepDetail]] = None,
+    ) -> InboundShipmentItem:
         """
         Build an inbound shipment item.
         
@@ -1091,7 +1160,7 @@ class SPAPIFba:
         Returns:
             Shipment item dictionary
         """
-        item = {
+        item: InboundShipmentItem = {
             'SellerSKU': seller_sku,
             'QuantityShipped': quantity_shipped,
         }
@@ -1108,13 +1177,13 @@ class SPAPIFba:
         seller_sku: str,
         seller_fulfillment_order_item_id: str,
         quantity: int,
-        gift_message: str = None,
-        displayable_comment: str = None,
-        fulfillment_network_sku: str = None,
-        per_unit_declared_value: Dict[str, Any] = None,
-        per_unit_price: Dict[str, Any] = None,
-        per_unit_tax: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
+        gift_message: Optional[str] = None,
+        displayable_comment: Optional[str] = None,
+        fulfillment_network_sku: Optional[str] = None,
+        per_unit_declared_value: Optional[Money] = None,
+        per_unit_price: Optional[Money] = None,
+        per_unit_tax: Optional[Money] = None,
+    ) -> FulfillmentOrderItem:
         """
         Build a fulfillment order item for MCF.
         
@@ -1132,7 +1201,7 @@ class SPAPIFba:
         Returns:
             Fulfillment order item dictionary
         """
-        item = {
+        item: FulfillmentOrderItem = {
             'sellerSku': seller_sku,
             'sellerFulfillmentOrderItemId': seller_fulfillment_order_item_id,
             'quantity': quantity,
@@ -1156,7 +1225,7 @@ class SPAPIFba:
     def get_low_inventory_items(
         self,
         threshold: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[InventorySummary]:
         """
         Get inventory items below a threshold.
         

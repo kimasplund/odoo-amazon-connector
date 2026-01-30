@@ -14,7 +14,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, TypedDict, Union
 from urllib.parse import urlencode
 
 import requests
@@ -22,10 +22,17 @@ import requests
 _logger = logging.getLogger(__name__)
 
 
+class TokenResponse(TypedDict):
+    access_token: str
+    token_type: str
+    expires_in: int
+    refresh_token: Optional[str]
+
+
 class SPAPIAuthError(Exception):
     """Base exception for SP-API authentication errors."""
     
-    def __init__(self, message: str, error_code: str = None, response: dict = None):
+    def __init__(self, message: str, error_code: Optional[str] = None, response: Optional[Dict[str, Any]] = None):
         super().__init__(message)
         self.error_code = error_code
         self.response = response or {}
@@ -88,6 +95,7 @@ class LWAClient:
             SPAPIAuthError: If token retrieval fails
         """
         if self._is_token_valid():
+            assert self._access_token is not None
             return self._access_token
             
         return self._refresh_access_token()
@@ -133,7 +141,7 @@ class LWAClient:
             )
             
             if response.status_code == 200:
-                token_data = response.json()
+                token_data: TokenResponse = response.json()
                 self._access_token = token_data["access_token"]
                 expires_in = token_data.get("expires_in", 3600)
                 self._token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
@@ -170,13 +178,13 @@ class LWAClient:
             _logger.error("LWA token refresh request failed: %s", str(e))
             raise SPAPIAuthError(f"Network error during token refresh: {str(e)}")
     
-    def invalidate_token(self):
+    def invalidate_token(self) -> None:
         """Invalidate the cached token, forcing a refresh on next request."""
         self._access_token = None
         self._token_expiry = None
         _logger.debug("LWA token cache invalidated")
     
-    def close(self):
+    def close(self) -> None:
         """Close the underlying session."""
         self._session.close()
 
@@ -195,8 +203,8 @@ class AWSSigV4Auth:
     
     def __init__(
         self,
-        access_key: str = None,
-        secret_key: str = None,
+        access_key: Optional[str] = None,
+        secret_key: Optional[str] = None,
         region: str = "eu-west-1",
         service: str = "execute-api"
     ):
@@ -241,7 +249,7 @@ class AWSSigV4Auth:
         url: str,
         headers: Dict[str, str],
         payload: str = "",
-        params: Dict[str, str] = None
+        params: Optional[Dict[str, str]] = None
     ) -> Dict[str, str]:
         """
         Sign a request using AWS Signature V4.
@@ -339,7 +347,7 @@ class SPAPIAuthenticator:
     """
     
     # Regional endpoints
-    ENDPOINTS = {
+    ENDPOINTS: Dict[str, Dict[str, str]] = {
         'na': {
             'region': 'us-east-1',
             'endpoint': 'https://sellingpartnerapi-na.amazon.com',
@@ -358,7 +366,7 @@ class SPAPIAuthenticator:
     }
     
     # Marketplace to region mapping
-    MARKETPLACE_REGIONS = {
+    MARKETPLACE_REGIONS: Dict[str, str] = {
         # North America
         'A2EUQ1WTGCTBG2': 'na',  # CA
         'ATVPDKIKX0DER': 'na',   # US
@@ -393,10 +401,10 @@ class SPAPIAuthenticator:
         client_id: str,
         client_secret: str,
         refresh_token: str,
-        aws_access_key: str = None,
-        aws_secret_key: str = None,
+        aws_access_key: Optional[str] = None,
+        aws_secret_key: Optional[str] = None,
         region: str = 'eu',
-        marketplace_id: str = None,
+        marketplace_id: Optional[str] = None,
         sandbox: bool = False
     ):
         """
@@ -433,11 +441,13 @@ class SPAPIAuthenticator:
         )
         
         # Initialize SigV4 auth (optional, SP-API may not require it)
-        self.sigv4_auth = AWSSigV4Auth(
-            access_key=aws_access_key,
-            secret_key=aws_secret_key,
-            region=self.aws_region
-        ) if aws_access_key and aws_secret_key else None
+        self.sigv4_auth: Optional[AWSSigV4Auth] = None
+        if aws_access_key and aws_secret_key:
+            self.sigv4_auth = AWSSigV4Auth(
+                access_key=aws_access_key,
+                secret_key=aws_secret_key,
+                region=self.aws_region
+            )
         
         _logger.info(
             "SP-API Authenticator initialized for region %s (%s mode)",
@@ -465,7 +475,7 @@ class SPAPIAuthenticator:
         url: str,
         headers: Dict[str, str],
         payload: str = "",
-        params: Dict[str, str] = None
+        params: Optional[Dict[str, str]] = None
     ) -> Dict[str, str]:
         """
         Sign a request with AWS SigV4 if credentials are available.
@@ -488,10 +498,10 @@ class SPAPIAuthenticator:
         """Get the base API endpoint URL."""
         return self.endpoint
     
-    def invalidate_token(self):
+    def invalidate_token(self) -> None:
         """Invalidate the cached access token."""
         self.lwa_client.invalidate_token()
     
-    def close(self):
+    def close(self) -> None:
         """Clean up resources."""
         self.lwa_client.close()

@@ -202,10 +202,10 @@ class SPAPIReports:
     def create_report(
         self,
         report_type: Union[str, ReportType],
-        marketplace_ids: List[str] = None,
-        data_start_time: Union[datetime, str] = None,
-        data_end_time: Union[datetime, str] = None,
-        report_options: Dict[str, str] = None,
+        marketplace_ids: Optional[List[str]] = None,
+        data_start_time: Union[datetime, str, None] = None,
+        data_end_time: Union[datetime, str, None] = None,
+        report_options: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a report request.
@@ -220,7 +220,7 @@ class SPAPIReports:
         Returns:
             Report request result with report ID
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -231,7 +231,7 @@ class SPAPIReports:
         
         rt = report_type.value if isinstance(report_type, ReportType) else report_type
         
-        data = {
+        data: Dict[str, Any] = {
             'reportType': rt,
             'marketplaceIds': marketplace_ids or [self.client.marketplace_id],
         }
@@ -271,13 +271,13 @@ class SPAPIReports:
     
     def get_reports(
         self,
-        report_types: List[Union[str, ReportType]] = None,
-        processing_statuses: List[Union[str, ReportStatus]] = None,
-        marketplace_ids: List[str] = None,
+        report_types: Optional[List[Union[str, ReportType]]] = None,
+        processing_statuses: Optional[List[Union[str, ReportStatus]]] = None,
+        marketplace_ids: Optional[List[str]] = None,
         page_size: int = 10,
-        created_since: Union[datetime, str] = None,
-        created_until: Union[datetime, str] = None,
-        next_token: str = None,
+        created_since: Union[datetime, str, None] = None,
+        created_until: Union[datetime, str, None] = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get a list of reports.
@@ -294,7 +294,7 @@ class SPAPIReports:
         Returns:
             List of reports
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -303,7 +303,7 @@ class SPAPIReports:
                 return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
             return dt
         
-        params = {
+        params: Dict[str, Any] = {
             'pageSize': page_size,
         }
         
@@ -357,7 +357,7 @@ class SPAPIReports:
     def get_report_document(
         self,
         report_document_id: str,
-        report_type: str = None,
+        report_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get a report document.
@@ -388,7 +388,7 @@ class SPAPIReports:
         self,
         report_document_id: str,
         decompress: bool = True,
-        report_type: str = None,
+        report_type: Optional[str] = None,
     ) -> bytes:
         """
         Download content from a report document.
@@ -442,9 +442,9 @@ class SPAPIReports:
         self,
         report_type: Union[str, ReportType],
         period: Union[str, ReportScheduleFrequency],
-        marketplace_ids: List[str] = None,
-        report_options: Dict[str, str] = None,
-        next_report_creation_time: Union[datetime, str] = None,
+        marketplace_ids: Optional[List[str]] = None,
+        report_options: Optional[Dict[str, str]] = None,
+        next_report_creation_time: Union[datetime, str, None] = None,
     ) -> Dict[str, Any]:
         """
         Create a report schedule.
@@ -459,7 +459,7 @@ class SPAPIReports:
         Returns:
             Schedule creation result
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -471,7 +471,7 @@ class SPAPIReports:
         rt = report_type.value if isinstance(report_type, ReportType) else report_type
         p = period.value if isinstance(period, ReportScheduleFrequency) else period
         
-        data = {
+        data: Dict[str, Any] = {
             'reportType': rt,
             'period': p,
             'marketplaceIds': marketplace_ids or [self.client.marketplace_id],
@@ -510,7 +510,7 @@ class SPAPIReports:
     
     def get_report_schedules(
         self,
-        report_types: List[Union[str, ReportType]] = None,
+        report_types: Optional[List[Union[str, ReportType]]] = None,
     ) -> Dict[str, Any]:
         """
         Get all report schedules.
@@ -560,10 +560,10 @@ class SPAPIReports:
     def request_report(
         self,
         report_type: Union[str, ReportType],
-        marketplace_ids: List[str] = None,
-        data_start_time: Union[datetime, str] = None,
-        data_end_time: Union[datetime, str] = None,
-        report_options: Dict[str, str] = None,
+        marketplace_ids: Optional[List[str]] = None,
+        data_start_time: Union[datetime, str, None] = None,
+        data_end_time: Union[datetime, str, None] = None,
+        report_options: Optional[Dict[str, str]] = None,
         wait_for_completion: bool = False,
         poll_interval: int = 30,
         max_wait: int = 3600,
@@ -732,7 +732,7 @@ class SPAPIReports:
     def get_fba_inventory_report(
         self,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get FBA inventory report.
         
@@ -748,13 +748,16 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []  # Should not happen for this report type if parsed correctly
         return report
     
     def get_all_listings_report(
         self,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get all listings report.
         
@@ -770,15 +773,18 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report
     
     def get_orders_report(
         self,
-        start_date: Union[datetime, str] = None,
-        end_date: Union[datetime, str] = None,
+        start_date: Union[datetime, str, None] = None,
+        end_date: Union[datetime, str, None] = None,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get orders report.
         
@@ -801,13 +807,16 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report
     
     def get_settlement_reports(
         self,
-        settlement_id: str = None,
-        created_since: Union[datetime, str] = None,
+        settlement_id: Optional[str] = None,
+        created_since: Union[datetime, str, None] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get list of settlement reports.
@@ -833,7 +842,7 @@ class SPAPIReports:
     def get_settlement_report_data(
         self,
         report_id: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get data from a settlement report.
         
@@ -843,14 +852,17 @@ class SPAPIReports:
         Returns:
             Parsed settlement data
         """
-        return self.get_report_data(report_id)
+        data = self.get_report_data(report_id)
+        if isinstance(data, list):
+            return data
+        return []
     
     def get_returns_report(
         self,
-        start_date: Union[datetime, str] = None,
-        end_date: Union[datetime, str] = None,
+        start_date: Union[datetime, str, None] = None,
+        end_date: Union[datetime, str, None] = None,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get returns report.
         
@@ -873,13 +885,16 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report
     
     def get_fba_fees_report(
         self,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get FBA fees estimate report.
         
@@ -895,13 +910,16 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report
     
     def get_stranded_inventory_report(
         self,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get stranded inventory report.
         
@@ -917,15 +935,18 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report
     
     def get_reimbursements_report(
         self,
-        start_date: Union[datetime, str] = None,
-        end_date: Union[datetime, str] = None,
+        start_date: Union[datetime, str, None] = None,
+        end_date: Union[datetime, str, None] = None,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get FBA reimbursements report.
         
@@ -948,13 +969,16 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report
     
     def get_storage_fee_report(
         self,
         wait_for_completion: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Get FBA storage fee report.
         
@@ -970,5 +994,8 @@ class SPAPIReports:
         )
         
         if wait_for_completion:
-            return self.get_report_data(report['reportId'])
+            data = self.get_report_data(report['reportId'])
+            if isinstance(data, list):
+                return data
+            return []
         return report

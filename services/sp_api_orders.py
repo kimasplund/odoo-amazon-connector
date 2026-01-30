@@ -12,7 +12,7 @@ Handles:
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TypedDict
 from enum import Enum
 
 from .sp_api_client import SPAPIClient, SPAPIError
@@ -65,6 +65,130 @@ class PaymentMethod(str, Enum):
     OTHER = "Other"
 
 
+# ============================================================================
+# TypedDicts
+# ============================================================================
+
+class Address(TypedDict, total=False):
+    Name: str
+    AddressLine1: str
+    AddressLine2: str
+    AddressLine3: str
+    City: str
+    County: str
+    District: str
+    StateOrRegion: str
+    Municipality: str
+    PostalCode: str
+    CountryCode: str
+    Phone: str
+    AddressType: str
+
+
+class Money(TypedDict):
+    CurrencyCode: str
+    Amount: str
+
+
+class BuyerTaxInfo(TypedDict, total=False):
+    CompanyLegalName: str
+    TaxingRegion: str
+    TaxClassifications: List[Dict[str, str]]
+
+
+class BuyerInfo(TypedDict, total=False):
+    BuyerEmail: str
+    BuyerName: str
+    BuyerCounty: str
+    BuyerTaxInfo: BuyerTaxInfo
+    PurchaseOrderNumber: str
+
+
+class Order(TypedDict, total=False):
+    AmazonOrderId: str
+    SellerOrderId: str
+    PurchaseDate: str
+    LastUpdateDate: str
+    OrderStatus: str
+    FulfillmentChannel: str
+    SalesChannel: str
+    OrderChannel: str
+    ShipServiceLevel: str
+    OrderTotal: Money
+    NumberOfItemsShipped: int
+    NumberOfItemsUnshipped: int
+    PaymentExecutionDetail: List[Dict[str, Any]]
+    PaymentMethod: str
+    PaymentMethodDetails: List[str]
+    MarketplaceId: str
+    ShipmentServiceLevelCategory: str
+    EasyShipShipmentStatus: str
+    CbaDisplayableShippingLabel: str
+    OrderType: str
+    EarliestShipDate: str
+    LatestShipDate: str
+    EarliestDeliveryDate: str
+    LatestDeliveryDate: str
+    IsBusinessOrder: bool
+    IsPrime: bool
+    IsPremiumOrder: bool
+    IsGlobalExpressEnabled: bool
+    ReplacedOrderId: str
+    IsReplacementOrder: bool
+    PromiseResponseDueDate: str
+    IsEstimatedShipDateSet: bool
+    IsSoldByAB: bool
+    IsIBA: bool
+    DefaultShipFromLocationAddress: Address
+    BuyerInvoicePreference: str
+    BuyerTaxInformation: BuyerTaxInfo
+    FulfillmentInstruction: Dict[str, Any]
+    IsISPU: bool
+    IsAccessPointOrder: bool
+    SellerDisplayName: str
+    ShippingAddress: Address
+    BuyerInfo: BuyerInfo
+    AutomatedShippingSettings: Dict[str, Any]
+    HasRegulatedItems: bool
+    ElectronicInvoiceStatus: str
+
+
+class OrderItem(TypedDict, total=False):
+    ASIN: str
+    SellerSKU: str
+    OrderItemId: str
+    Title: str
+    QuantityOrdered: int
+    QuantityShipped: int
+    ProductInfo: Dict[str, Any]
+    PointsGranted: Dict[str, Any]
+    ItemPrice: Money
+    ShippingPrice: Money
+    TaxCollection: Dict[str, Any]
+    CoordinatedSetIdentifier: Dict[str, Any]
+    PromotionIds: List[str]
+    ConditionNote: str
+    ConditionId: str
+    ConditionSubtypeId: str
+    ScheduledDeliveryStartDate: str
+    ScheduledDeliveryEndDate: str
+    PriceDesignation: str
+    BuyerInfo: Dict[str, Any]
+
+
+class PackageDetail(TypedDict, total=False):
+    carrierCode: str
+    carrierName: str
+    trackingNumber: str
+    shipDate: str
+    shipFromSupplySourceId: str
+    orderItems: List[Dict[str, Any]]
+
+
+# ============================================================================
+# SPAPIOrders Class
+# ============================================================================
+
 class SPAPIOrders:
     """
     Amazon Orders API Client
@@ -95,28 +219,28 @@ class SPAPIOrders:
     
     def get_orders(
         self,
-        created_after: Union[datetime, str] = None,
-        created_before: Union[datetime, str] = None,
-        last_updated_after: Union[datetime, str] = None,
-        last_updated_before: Union[datetime, str] = None,
-        order_statuses: List[Union[str, OrderStatus]] = None,
-        marketplace_ids: List[str] = None,
-        fulfillment_channels: List[Union[str, FulfillmentChannel]] = None,
-        payment_methods: List[Union[str, PaymentMethod]] = None,
-        buyer_email: str = None,
-        seller_order_id: str = None,
+        created_after: Union[datetime, str, None] = None,
+        created_before: Union[datetime, str, None] = None,
+        last_updated_after: Union[datetime, str, None] = None,
+        last_updated_before: Union[datetime, str, None] = None,
+        order_statuses: Optional[List[Union[str, OrderStatus]]] = None,
+        marketplace_ids: Optional[List[str]] = None,
+        fulfillment_channels: Optional[List[Union[str, FulfillmentChannel]]] = None,
+        payment_methods: Optional[List[Union[str, PaymentMethod]]] = None,
+        buyer_email: Optional[str] = None,
+        seller_order_id: Optional[str] = None,
         max_results_per_page: int = 100,
-        easy_ship_shipment_statuses: List[Union[str, EasyShipShipmentStatus]] = None,
-        electronic_invoice_statuses: List[str] = None,
-        next_token: str = None,
-        amazon_order_ids: List[str] = None,
-        actual_fulfillment_supply_source_id: str = None,
-        is_ispu: bool = None,
-        store_chain_store_id: str = None,
-        earliest_delivery_date_before: Union[datetime, str] = None,
-        earliest_delivery_date_after: Union[datetime, str] = None,
-        latest_delivery_date_before: Union[datetime, str] = None,
-        latest_delivery_date_after: Union[datetime, str] = None,
+        easy_ship_shipment_statuses: Optional[List[Union[str, EasyShipShipmentStatus]]] = None,
+        electronic_invoice_statuses: Optional[List[str]] = None,
+        next_token: Optional[str] = None,
+        amazon_order_ids: Optional[List[str]] = None,
+        actual_fulfillment_supply_source_id: Optional[str] = None,
+        is_ispu: Optional[bool] = None,
+        store_chain_store_id: Optional[str] = None,
+        earliest_delivery_date_before: Union[datetime, str, None] = None,
+        earliest_delivery_date_after: Union[datetime, str, None] = None,
+        latest_delivery_date_before: Union[datetime, str, None] = None,
+        latest_delivery_date_after: Union[datetime, str, None] = None,
     ) -> Dict[str, Any]:
         """
         Get orders matching criteria.
@@ -153,7 +277,7 @@ class SPAPIOrders:
         Returns:
             Orders response with pagination
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -162,7 +286,7 @@ class SPAPIOrders:
                 return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
             return dt
         
-        params = {
+        params: Dict[str, Any] = {
             'MaxResultsPerPage': min(max_results_per_page, 100),
         }
         
@@ -321,11 +445,11 @@ class SPAPIOrders:
     
     def get_orders_all(
         self,
-        created_after: Union[datetime, str] = None,
-        last_updated_after: Union[datetime, str] = None,
-        max_pages: int = None,
-        **kwargs
-    ) -> List[Dict[str, Any]]:
+        created_after: Union[datetime, str, None] = None,
+        last_updated_after: Union[datetime, str, None] = None,
+        max_pages: Optional[int] = None,
+        **kwargs: Any
+    ) -> List[Order]:
         """
         Get all orders matching criteria with automatic pagination.
         
@@ -338,8 +462,8 @@ class SPAPIOrders:
         Returns:
             List of all matching orders
         """
-        all_orders = []
-        next_token = None
+        all_orders: List[Order] = []
+        next_token: Optional[str] = None
         page_count = 0
         
         # Default to last 7 days if no date specified
@@ -380,7 +504,7 @@ class SPAPIOrders:
     def get_order_items(
         self,
         order_id: str,
-        next_token: str = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get items for an order.
@@ -412,7 +536,7 @@ class SPAPIOrders:
     def get_order_items_buyer_info(
         self,
         order_id: str,
-        next_token: str = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get buyer info for order items.
@@ -446,7 +570,7 @@ class SPAPIOrders:
     def get_order_items_all(
         self,
         order_id: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[OrderItem]:
         """
         Get all items for an order with automatic pagination.
         
@@ -456,8 +580,8 @@ class SPAPIOrders:
         Returns:
             List of all order items
         """
-        all_items = []
-        next_token = None
+        all_items: List[OrderItem] = []
+        next_token: Optional[str] = None
         
         while True:
             response = self.get_order_items(order_id, next_token)
@@ -496,8 +620,8 @@ class SPAPIOrders:
         self,
         order_id: str,
         regulated_order_verification_status: str,
-        external_reviewer_id: str = None,
-        rejection_reason_id: str = None,
+        external_reviewer_id: Optional[str] = None,
+        rejection_reason_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Update verification status for a regulated order.
@@ -511,7 +635,7 @@ class SPAPIOrders:
         Returns:
             Update result
         """
-        data = {
+        data: Dict[str, Any] = {
             'regulatedOrderVerificationStatus': {
                 'status': regulated_order_verification_status,
             }
@@ -535,9 +659,9 @@ class SPAPIOrders:
     def confirm_shipment(
         self,
         order_id: str,
-        package_detail: Dict[str, Any],
-        marketplace_id: str = None,
-        cod_collection_method: str = None,
+        package_detail: PackageDetail,
+        marketplace_id: Optional[str] = None,
+        cod_collection_method: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Confirm shipment of an order.
@@ -551,7 +675,7 @@ class SPAPIOrders:
         Returns:
             Confirmation result
         """
-        data = {
+        data: Dict[str, Any] = {
             'marketplaceId': marketplace_id or self.client.marketplace_id,
             'packageDetail': package_detail,
         }
@@ -572,17 +696,17 @@ class SPAPIOrders:
     
     def get_order_metrics(
         self,
-        marketplace_ids: List[str] = None,
-        interval: str = None,
-        interval_start: Union[datetime, str] = None,
-        interval_end: Union[datetime, str] = None,
+        marketplace_ids: Optional[List[str]] = None,
+        interval: Optional[str] = None,
+        interval_start: Union[datetime, str, None] = None,
+        interval_end: Union[datetime, str, None] = None,
         granularity: str = "Total",
-        granularity_time_zone: str = None,
+        granularity_time_zone: Optional[str] = None,
         buyer_type: str = "All",
-        fulfillment_network: str = None,
+        fulfillment_network: Optional[str] = None,
         first_day_of_week: str = "Monday",
-        asin: str = None,
-        sku: str = None,
+        asin: Optional[str] = None,
+        sku: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get order metrics for analytics.
@@ -603,7 +727,7 @@ class SPAPIOrders:
         Returns:
             Order metrics
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -616,16 +740,16 @@ class SPAPIOrders:
         if interval:
             interval_param = interval
         elif interval_start and interval_end:
-            start = format_datetime(interval_start)
-            end = format_datetime(interval_end)
-            interval_param = f"{start}--{end}"
+            start_str = format_datetime(interval_start)
+            end_str = format_datetime(interval_end)
+            interval_param = f"{start_str}--{end_str}"
         else:
             # Default to last 30 days
-            end = datetime.now(timezone.utc)
-            start = end - timedelta(days=30)
-            interval_param = f"{format_datetime(start)}--{format_datetime(end)}"
+            end_dt = datetime.now(timezone.utc)
+            start_dt = end_dt - timedelta(days=30)
+            interval_param = f"{format_datetime(start_dt)}--{format_datetime(end_dt)}"
         
-        params = {
+        params: Dict[str, Any] = {
             'interval': interval_param,
             'granularity': granularity,
             'buyerType': buyer_type,
@@ -660,11 +784,11 @@ class SPAPIOrders:
     def build_package_detail(
         self,
         tracking_number: str,
-        carrier_code: str = None,
-        carrier_name: str = None,
-        ship_from_supply_source_id: str = None,
-        order_items: List[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        carrier_code: Optional[str] = None,
+        carrier_name: Optional[str] = None,
+        ship_from_supply_source_id: Optional[str] = None,
+        order_items: Optional[List[Dict[str, Any]]] = None,
+    ) -> PackageDetail:
         """
         Build package detail for shipment confirmation.
         
@@ -678,7 +802,7 @@ class SPAPIOrders:
         Returns:
             Package detail dictionary
         """
-        package = {
+        package: PackageDetail = {
             'trackingNumber': tracking_number,
         }
         
@@ -698,9 +822,9 @@ class SPAPIOrders:
     def get_recent_orders(
         self,
         days: int = 7,
-        order_statuses: List[Union[str, OrderStatus]] = None,
-        fulfillment_channels: List[Union[str, FulfillmentChannel]] = None,
-    ) -> List[Dict[str, Any]]:
+        order_statuses: Optional[List[Union[str, OrderStatus]]] = None,
+        fulfillment_channels: Optional[List[Union[str, FulfillmentChannel]]] = None,
+    ) -> List[Order]:
         """
         Convenience method to get recent orders.
         
@@ -723,8 +847,8 @@ class SPAPIOrders:
     def get_unshipped_orders(
         self,
         days: int = 30,
-        fulfillment_channels: List[Union[str, FulfillmentChannel]] = None,
-    ) -> List[Dict[str, Any]]:
+        fulfillment_channels: Optional[List[Union[str, FulfillmentChannel]]] = None,
+    ) -> List[Order]:
         """
         Get all unshipped orders.
         
@@ -770,7 +894,7 @@ class SPAPIOrders:
     # =========================================================================
     
     # Standard carrier codes for use with confirm_shipment
-    CARRIER_CODES = {
+    CARRIER_CODES: Dict[str, str] = {
         # Global
         'DHL': 'DHL',
         'UPS': 'UPS',
