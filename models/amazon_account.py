@@ -802,7 +802,66 @@ class AmazonAccount(models.Model):
     def _sync_inventory(self):
         """Sync inventory levels."""
         _logger.info('Syncing inventory for account: %s', self.name)
-        # TODO: Implement via sp_api_fba service
+
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_fba import SPAPIFba
+
+        for marketplace in self.marketplace_ids:
+            try:
+                _logger.info('Fetching inventory for marketplace: %s', marketplace.name)
+
+                client = OdooSPAPIClient(
+                    client_id=self.lwa_client_id,
+                    client_secret=self.lwa_client_secret,
+                    refresh_token=self.refresh_token,
+                    aws_access_key=self.aws_access_key,
+                    aws_secret_key=self.aws_secret_key,
+                    region=marketplace.region,
+                    marketplace_id=marketplace.marketplace_id,
+                    sandbox=self.sandbox_mode
+                )
+
+                fba_api = SPAPIFba(client)
+
+                # Fetch all inventory summaries
+                summaries = fba_api.get_inventory_summaries_all(
+                    granularity_type='Marketplace',
+                    granularity_id=marketplace.marketplace_id,
+                    marketplace_ids=[marketplace.marketplace_id]
+                )
+
+                # Process summaries
+                for summary in summaries:
+                    sku = summary.get('sellerSku')
+                    if not sku:
+                        continue
+
+                    listing = self.env['amazon.product.listing'].search([
+                        ('account_id', '=', self.id),
+                        ('marketplace_id', '=', marketplace.id),
+                        ('sku', '=', sku)
+                    ], limit=1)
+
+                    if listing:
+                        details = summary.get('inventoryDetails', {})
+                        reserved = details.get('reservedQuantity', {})
+                        unfulfillable = details.get('unfulfillableQuantity', {})
+
+                        listing.write({
+                            'quantity_available': details.get('fulfillableQuantity', 0),
+                            'quantity_inbound': (
+                                details.get('inboundWorkingQuantity', 0) +
+                                details.get('inboundShippedQuantity', 0) +
+                                details.get('inboundReceivingQuantity', 0)
+                            ),
+                            'quantity_reserved': reserved.get('totalReservedQuantity', 0),
+                            'quantity_unfulfillable': unfulfillable.get('totalUnfulfillableQuantity', 0),
+                            'last_inventory_sync': fields.Datetime.now(),
+                        })
+
+            except Exception as e:
+                _logger.error('Failed to sync inventory for marketplace %s: %s',
+                             marketplace.name, str(e))
 
     def _sync_fba(self):
         """Sync FBA data (shipments, inventory)."""
