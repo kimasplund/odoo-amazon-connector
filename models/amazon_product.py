@@ -771,10 +771,76 @@ class AmazonProductListing(models.Model):
 
     def action_sync_inventory(self):
         """Sync inventory levels from Amazon."""
+        # Group records by account and marketplace to batch requests
+        grouped = {}
         for record in self:
-            _logger.info('Syncing inventory for %s', record.display_name)
-            # TODO: Implement via sp_api_fba service
-            record.last_inventory_sync = fields.Datetime.now()
+            if not record.account_id or not record.marketplace_id:
+                continue
+            key = (record.account_id, record.marketplace_id)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(record)
+
+        for (account, marketplace), records in grouped.items():
+            _logger.info(
+                'Syncing inventory for account %s, marketplace %s (%d listings)',
+                account.name, marketplace.name, len(records)
+            )
+
+            try:
+                client = account.get_sp_api_client()
+                from ..services.sp_api_fba import SPAPIFba
+                fba_api = SPAPIFba(client)
+
+                # Map SKUs to records for easy lookup
+                sku_map = {r.sku: r for r in records if r.sku}
+                all_skus = list(sku_map.keys())
+
+                # Process in chunks of 50 (API limit)
+                for i in range(0, len(all_skus), 50):
+                    chunk = all_skus[i:i+50]
+
+                    try:
+                        response = fba_api.get_inventory_summaries(
+                            granularity_type='Marketplace',
+                            granularity_id=marketplace.marketplace_id,
+                            marketplace_ids=[marketplace.marketplace_id],
+                            seller_skus=chunk,
+                            details=True,
+                        )
+
+                        payload = response.get('payload', response)
+                        summaries = payload.get('inventorySummaries', [])
+
+                        for summary in summaries:
+                            seller_sku = summary.get('sellerSku')
+                            details = summary.get('inventoryDetails', {})
+
+                            listing = sku_map.get(seller_sku)
+                            if listing:
+                                listing.write({
+                                    'quantity_available': details.get('fulfillableQuantity', 0),
+                                    'quantity_inbound': (
+                                        details.get('inboundWorkingQuantity', 0) +
+                                        details.get('inboundShippedQuantity', 0) +
+                                        details.get('inboundReceivingQuantity', 0)
+                                    ),
+                                    'quantity_reserved': details.get('reservedQuantity', {}).get('totalReservedQuantity', 0),
+                                    'quantity_unfulfillable': details.get('unfulfillableQuantity', {}).get('totalUnfulfillableQuantity', 0),
+                                    'last_inventory_sync': fields.Datetime.now(),
+                                })
+
+                    except Exception as e:
+                        _logger.error(
+                            "Failed to sync inventory chunk for account %s: %s",
+                            account.name, str(e)
+                        )
+
+            except Exception as e:
+                _logger.error(
+                    "Failed to sync inventory for account %s: %s",
+                    account.name, str(e)
+                )
 
     def action_open_on_amazon(self):
         """Open the product page on Amazon."""
