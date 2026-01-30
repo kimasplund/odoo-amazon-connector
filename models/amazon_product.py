@@ -559,6 +559,37 @@ class AmazonProductListing(models.Model):
     # -------------------------------------------------------------------------
     # BUSINESS METHODS
     # -------------------------------------------------------------------------
+    def _get_sellable_quantity(self):
+        """
+        Get sellable quantity for a single listing.
+
+        Wrapper around _get_sellable_quantities_batch for backward compatibility.
+        """
+        self.ensure_one()
+        return self._get_sellable_quantities_batch()[self.id]
+
+    def _get_sellable_quantities_batch(self):
+        """
+        Get sellable quantities for listings.
+
+        Calculates the available quantity for FBM listings based on linked
+        Odoo products.
+
+        :return: dict {id: quantity}
+        """
+        # Batch processing
+        result = {}
+        # Prefetching products and reading 'free_qty' triggers batch computation
+        products = self.mapped('product_id')
+        if products:
+            # Explicitly read free_qty to ensure it's computed in batch
+            products.read(['free_qty'])
+
+        for record in self:
+            result[record.id] = record.product_id.free_qty if record.product_id else 0.0
+
+        return result
+
     def action_sync_from_amazon(self):
         """Sync listing data from Amazon."""
         for record in self:
