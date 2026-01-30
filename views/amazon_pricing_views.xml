@@ -10,7 +10,7 @@
         <field name="name">amazon.pricing.rule.tree</field>
         <field name="model">amazon.pricing.rule</field>
         <field name="arch" type="xml">
-            <tree decoration-muted="not is_active">
+            <list decoration-muted="not is_active">
                 <field name="name"/>
                 <field name="rule_type"/>
                 <field name="product_listing_id" optional="show"/>
@@ -22,7 +22,7 @@
                 <field name="is_active" widget="boolean_toggle"/>
                 <field name="times_applied" optional="hide"/>
                 <field name="last_applied" optional="hide"/>
-            </tree>
+            </list>
         </field>
     </record>
     
@@ -153,7 +153,7 @@
         <field name="name">amazon.competitor.price.tree</field>
         <field name="model">amazon.competitor.price</field>
         <field name="arch" type="xml">
-            <tree create="false" default_order="captured_at desc">
+            <list create="false" default_order="captured_at desc">
                 <field name="product_listing_id"/>
                 <field name="competitor_seller"/>
                 <field name="competitor_price"/>
@@ -165,7 +165,7 @@
                 <field name="price_rank"/>
                 <field name="captured_at"/>
                 <field name="currency_id" column_invisible="True"/>
-            </tree>
+            </list>
         </field>
     </record>
     
@@ -315,7 +315,7 @@
         <field name="name">amazon.pricing.recommendation.tree</field>
         <field name="model">amazon.pricing.recommendation</field>
         <field name="arch" type="xml">
-            <tree decoration-muted="status in ('dismissed', 'expired')"
+            <list decoration-muted="status in ('dismissed', 'expired')"
                   decoration-success="status == 'applied'">
                 <field name="product_listing_id"/>
                 <field name="current_price"/>
@@ -340,7 +340,7 @@
                 <button name="action_dismiss_silent" string="Dismiss" type="object"
                         class="btn-secondary" icon="fa-times"
                         invisible="status != 'pending'"/>
-            </tree>
+            </list>
         </field>
     </record>
     
@@ -484,7 +484,7 @@
         <field name="name">amazon.price.history.tree</field>
         <field name="model">amazon.price.history</field>
         <field name="arch" type="xml">
-            <tree create="false" default_order="change_date desc">
+            <list create="false" default_order="change_date desc">
                 <field name="product_listing_id"/>
                 <field name="old_price"/>
                 <field name="new_price"/>
@@ -494,7 +494,7 @@
                 <field name="change_date"/>
                 <field name="user_id"/>
                 <field name="currency_id" column_invisible="True"/>
-            </tree>
+            </list>
         </field>
     </record>
     
@@ -561,7 +561,7 @@
                     </group>
                     
                     <field name="preview_line_ids" invisible="state != 'preview'">
-                        <tree editable="bottom" decoration-warning="warnings"
+                        <list editable="bottom" decoration-warning="warnings"
                               decoration-muted="not include">
                             <field name="include" widget="boolean_toggle"/>
                             <field name="sku"/>
@@ -577,7 +577,7 @@
                             <field name="warnings" optional="show"/>
                             <field name="currency_id" column_invisible="True"/>
                             <field name="product_listing_id" column_invisible="True"/>
-                        </tree>
+                        </list>
                     </field>
                     
                     <!-- Done State -->
