@@ -3,6 +3,7 @@
 import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from ..services.sp_api_products import SPAPIProducts
 
 _logger = logging.getLogger(__name__)
 
@@ -594,8 +595,82 @@ class AmazonProductListing(models.Model):
         """Sync listing data from Amazon."""
         for record in self:
             _logger.info('Syncing listing %s from Amazon', record.display_name)
-            # TODO: Implement via sp_api_products service
-            record.last_sync_date = fields.Datetime.now()
+            try:
+                client = record.account_id.get_sp_api_client()
+                products_api = SPAPIProducts(client)
+
+                data = products_api.get_listings_item(
+                    seller_id=record.account_id.seller_id,
+                    sku=record.sku,
+                    included_data=['summaries', 'attributes', 'issues', 'offers'],
+                    issue_locale=record.marketplace_id.lang_id.code if record.marketplace_id.lang_id else 'en_US'
+                )
+
+                vals = {
+                    'last_sync_date': fields.Datetime.now(),
+                    'listing_issues': False,
+                }
+
+                # Summaries (Title, ASIN, Image)
+                if data.get('summaries'):
+                    summary = data['summaries'][0]
+                    vals['title'] = summary.get('itemName')
+                    if summary.get('asin'):
+                        vals['asin'] = summary.get('asin')
+                    if summary.get('mainImage'):
+                        vals['main_image_url'] = summary['mainImage'].get('link')
+
+                # Attributes (Description, Bullets, Brand)
+                if data.get('attributes'):
+                    attrs = data['attributes']
+
+                    # Bullet Points
+                    bullets = attrs.get('bullet_point', [])
+                    # Sort bullets if they have sequence or rely on list order
+                    for i in range(5):
+                        field_name = f'bullet_point_{i+1}'
+                        if i < len(bullets):
+                            vals[field_name] = bullets[i].get('value')
+                        else:
+                            vals[field_name] = False
+
+                    # Description
+                    desc = attrs.get('product_description')
+                    if desc and isinstance(desc, list) and len(desc) > 0:
+                        vals['description'] = desc[0].get('value')
+
+                    # Brand & Manufacturer
+                    brand = attrs.get('brand')
+                    if brand and isinstance(brand, list) and len(brand) > 0:
+                        vals['brand'] = brand[0].get('value')
+
+                    manufacturer = attrs.get('manufacturer')
+                    if manufacturer and isinstance(manufacturer, list) and len(manufacturer) > 0:
+                        vals['manufacturer'] = manufacturer[0].get('value')
+
+                # Issues
+                if data.get('issues'):
+                    vals['listing_issues'] = str(data['issues'])
+                    vals['state'] = 'incomplete'
+                elif data.get('status'):
+                    # Update state based on Amazon status
+                    statuses = data['status']
+                    if 'BUYABLE' in statuses:
+                        vals['state'] = 'active'
+                    elif 'DISCOVERABLE' in statuses:
+                        vals['state'] = 'active'
+                    elif 'DELETED' in statuses:
+                        vals['state'] = 'inactive'
+
+                record.write(vals)
+
+            except Exception as e:
+                _logger.error("Failed to sync listing %s: %s", record.display_name, str(e))
+                record.message_post(
+                    body=_("Failed to sync from Amazon: %s") % str(e),
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note',
+                )
 
     def action_push_to_amazon(self):
         """Push listing data to Amazon."""

@@ -643,6 +643,35 @@ class AmazonAccount(models.Model):
     # -------------------------------------------------------------------------
     # CONNECTION TESTING
     # -------------------------------------------------------------------------
+    def get_sp_api_client(self):
+        """Get an SP-API client for this account.
+
+        Returns:
+            OdooSPAPIClient: Configured API client
+        """
+        self.ensure_one()
+        from ..services.sp_api_client import OdooSPAPIClient
+
+        if not all([
+            self.lwa_client_id,
+            self.lwa_client_secret,
+            self.refresh_token,
+            self.aws_access_key,
+            self.aws_secret_key
+        ]):
+            raise UserError(_('Missing credentials. Please check your configuration.'))
+
+        return OdooSPAPIClient(
+            client_id=self.lwa_client_id,
+            client_secret=self.lwa_client_secret,
+            refresh_token=self.refresh_token,
+            aws_access_key=self.aws_access_key,
+            aws_secret_key=self.aws_secret_key,
+            region=self.api_region,
+            marketplace_id=self.default_marketplace_id.marketplace_id,
+            sandbox=self.sandbox_mode
+        )
+
     def action_test_connection(self):
         """Test the API connection and validate credentials.
         
@@ -722,20 +751,10 @@ class AmazonAccount(models.Model):
             self.name, self.seller_id, self.environment
         )
         
-        from ..services.sp_api_client import OdooSPAPIClient
         from ..services.sp_api_orders import SPAPIOrders
 
         # Use a temporary client to test connection
-        client = OdooSPAPIClient(
-            client_id=self.lwa_client_id,
-            client_secret=self.lwa_client_secret,
-            refresh_token=self.refresh_token,
-            aws_access_key=self.aws_access_key,
-            aws_secret_key=self.aws_secret_key,
-            region=self.api_region,
-            marketplace_id=self.default_marketplace_id.marketplace_id,
-            sandbox=self.sandbox_mode
-        )
+        client = self.get_sp_api_client()
 
         try:
             # First verify we can get an access token
