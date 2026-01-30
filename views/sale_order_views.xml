@@ -101,23 +101,6 @@
     </record>
 
     <!-- ============================================================ -->
-    <!-- Sale Order Line Inherited Views                               -->
-    <!-- ============================================================ -->
-
-    <!-- Inherit Sale Order Line Tree View -->
-    <record id="sale_order_line_view_tree_amazon" model="ir.ui.view">
-        <field name="name">sale.order.line.tree.amazon</field>
-        <field name="model">sale.order.line</field>
-        <field name="inherit_id" ref="sale.view_order_line_tree"/>
-        <field name="arch" type="xml">
-            <field name="product_id" position="after">
-                <field name="amazon_asin" string="ASIN" optional="hide"/>
-                <field name="amazon_sku" string="SKU" optional="hide"/>
-            </field>
-        </field>
-    </record>
-
-    <!-- ============================================================ -->
     <!-- Actions for Amazon Sale Orders                                -->
     <!-- ============================================================ -->
 
