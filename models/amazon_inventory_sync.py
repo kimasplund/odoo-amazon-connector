@@ -273,33 +273,39 @@ class AmazonInventorySync(models.Model):
                 # Simulated response structure
                 inventory_items = []  # Would come from API
                 
+                # Batch search for existing inventory
+                skus = [item.get('sellerSku') for item in inventory_items if item.get('sellerSku')]
+                existing_records = FBAInventory.search([
+                    ('account_id', '=', self.account_id.id),
+                    ('marketplace_id', '=', marketplace.id),
+                    ('amazon_sku', 'in', skus),
+                ])
+                existing_map = {r.amazon_sku: r for r in existing_records}
+
                 for item in inventory_items:
                     processed += 1
+                    sku = item.get('sellerSku')
                     try:
-                        existing = FBAInventory.search([
-                            ('account_id', '=', self.account_id.id),
-                            ('marketplace_id', '=', marketplace.id),
-                            ('amazon_sku', '=', item.get('sellerSku')),
-                        ], limit=1)
+                        existing = existing_map.get(sku)
+
+                        record = FBAInventory._update_or_create_from_amazon(
+                            self.account_id.id,
+                            marketplace.id,
+                            item,
+                            existing_record=existing or False
+                        )
                         
                         if existing:
-                            FBAInventory._update_or_create_from_amazon(
-                                self.account_id.id,
-                                marketplace.id,
-                                item
-                            )
                             updated += 1
                         else:
-                            FBAInventory._update_or_create_from_amazon(
-                                self.account_id.id,
-                                marketplace.id,
-                                item
-                            )
                             created += 1
+                            # Update map to handle duplicate SKUs in the same batch
+                            if sku:
+                                existing_map[sku] = record
                             
                     except Exception as e:
                         failed += 1
-                        self._log('error', f"Failed to process SKU {item.get('sellerSku')}: {e}")
+                        self._log('error', f"Failed to process SKU {sku}: {e}")
                 
                 self._log('info', f'Marketplace {marketplace.name}: {processed} processed')
                 
