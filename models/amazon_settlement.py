@@ -526,15 +526,22 @@ class AmazonSettlement(models.Model):
         reconciled_count = 0
         unmatched_lines = []
         
-        for line in self.line_ids.filtered(lambda l: not l.amazon_order_id):
-            if not line.order_id_text:
-                continue
-            
-            # Search for matching order
-            order = AmazonOrder.search([
-                ('amazon_order_id', '=', line.order_id_text),
+        # Optimization: Batch search for orders to avoid N+1 queries
+        lines_to_process = self.line_ids.filtered(lambda l: not l.amazon_order_id and l.order_id_text)
+
+        # Collect unique order IDs to search
+        order_ids_text = set(lines_to_process.mapped('order_id_text'))
+
+        order_map = {}
+        if order_ids_text:
+            orders = AmazonOrder.search([
+                ('amazon_order_id', 'in', list(order_ids_text)),
                 ('account_id', '=', self.account_id.id),
-            ], limit=1)
+            ])
+            order_map = {o.amazon_order_id: o for o in orders}
+
+        for line in lines_to_process:
+            order = order_map.get(line.order_id_text)
             
             if order:
                 line.amazon_order_id = order.id
