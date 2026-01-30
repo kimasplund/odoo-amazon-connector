@@ -66,19 +66,19 @@
     <menuitem id="menu_amazon_products_inventory"
               name="Inventory"
               parent="menu_amazon_products"
-              action="amazon_inventory_action"
+              action="amazon_fba_inventory_action"
               sequence="5"/>
 
     <menuitem id="menu_amazon_products_low_stock"
               name="Low Stock Alerts"
               parent="menu_amazon_products"
-              action="amazon_inventory_action_low_stock"
+              action="amazon_fba_inventory_action_restock"
               sequence="6"/>
 
     <menuitem id="menu_amazon_products_out_of_stock"
               name="Out of Stock"
               parent="menu_amazon_products"
-              action="amazon_inventory_action_out_of_stock"
+              action="amazon_fba_inventory_action_out_of_stock"
               sequence="7"/>
 
     <!-- ============================================================ -->
