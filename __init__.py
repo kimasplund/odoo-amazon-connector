@@ -15,7 +15,7 @@ def post_init_hook(env):
     """
     # Ensure all marketplace records have correct sequence
     marketplaces = env['amazon.marketplace'].search([])
-    for idx, marketplace in enumerate(marketplaces.sorted('country_code'), start=1):
+    for idx, marketplace in enumerate(marketplaces.sorted('name'), start=1):
         marketplace.write({'sequence': idx * 10})
 
 
