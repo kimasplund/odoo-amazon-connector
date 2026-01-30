@@ -721,6 +721,100 @@ class AmazonFBAShipment(models.Model):
         return True
     
     @api.model
+    def _update_or_create_from_amazon(self, account_id, marketplace_id, data):
+        """
+        Update or create shipment record from Amazon data.
+
+        :param account_id: amazon.account ID
+        :param marketplace_id: amazon.marketplace ID
+        :param data: Dict with shipment data from Amazon
+        :return: amazon.fba.shipment record
+        """
+        amazon_shipment_id = data.get('ShipmentId')
+        if not amazon_shipment_id:
+            return False
+
+        existing = self.search([
+            ('account_id', '=', account_id),
+            ('amazon_shipment_id', '=', amazon_shipment_id),
+        ], limit=1)
+
+        # Status mapping
+        status_map = {
+            'WORKING': 'working',
+            'READY_TO_SHIP': 'ready_to_ship',
+            'SHIPPED': 'shipped',
+            'IN_TRANSIT': 'in_transit',
+            'DELIVERED': 'delivered',
+            'CHECKED_IN': 'checked_in',
+            'RECEIVING': 'receiving',
+            'CLOSED': 'closed',
+            'CANCELLED': 'cancelled',
+            'DELETED': 'deleted',
+            'ERROR': 'error',
+        }
+        amazon_status = data.get('ShipmentStatus')
+        odoo_state = status_map.get(amazon_status, 'draft')
+
+        # Prep type mapping
+        prep_map = {
+            'NO_LABEL': 'no_label',
+            'SELLER_LABEL': 'seller_label',
+            'AMAZON_LABEL': 'amazon_label',
+        }
+        prep_type = prep_map.get(data.get('LabelPrepType'), 'seller_label')
+
+        vals = {
+            'amazon_shipment_name': data.get('ShipmentName'),
+            'destination_fc_id': data.get('DestinationFulfillmentCenterId'),
+            'amazon_status': amazon_status,
+            'label_prep_type': prep_type,
+            'packing_type': 'case_packed' if data.get('AreCasesRequired') else 'individual',
+            'last_sync_date': fields.Datetime.now(),
+            'sync_error': False,
+        }
+
+        # Only update state if it moved forward or changed significantly
+        # (avoid resetting local state if Odoo has more detailed tracking)
+        if existing:
+            # Maybe we only update state if Amazon state is different
+            if existing.amazon_status != amazon_status:
+                vals['state'] = odoo_state
+
+            existing.write(vals)
+            return existing
+        else:
+            vals.update({
+                'account_id': account_id,
+                'marketplace_id': marketplace_id,
+                'amazon_shipment_id': amazon_shipment_id,
+                'state': odoo_state,
+                'warehouse_id': self._get_default_warehouse(account_id, marketplace_id),
+                'shipment_type': 'sp', # Default, API doesn't always provide this in summary
+            })
+            return self.create(vals)
+
+    @api.model
+    def _get_default_warehouse(self, account_id, marketplace_id):
+        """Get default warehouse for new shipments."""
+        account = self.env['amazon.account'].browse(account_id)
+        if account.warehouse_id:
+            return account.warehouse_id.id
+
+        # Fallback to any FBA warehouse
+        warehouse = self.env['stock.warehouse'].search([
+            ('is_amazon_fba', '=', True),
+            ('amazon_marketplace_id', '=', marketplace_id),
+        ], limit=1)
+
+        if not warehouse:
+            warehouse = self.env['stock.warehouse'].search([
+                ('company_id', '=', account.company_id.id),
+            ], limit=1)
+
+        return warehouse.id if warehouse else False
+
+    @api.model
     def _cron_check_shipment_alerts(self):
         """Check for shipments requiring attention."""
         _logger.info('Checking FBA shipment alerts')
