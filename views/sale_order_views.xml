@@ -47,18 +47,17 @@
                         <group string="Fulfillment">
                             <field name="amazon_fulfillment_channel" readonly="1"/>
                             <field name="amazon_order_status" readonly="1"/>
-                            <field name="amazon_purchase_date" readonly="1"/>
+                            <field name="amazon_is_fba" readonly="1"/>
                         </group>
                     </group>
                     <group>
                         <group string="Buyer Info">
-                            <field name="amazon_buyer_name" readonly="1"/>
-                            <field name="amazon_buyer_email" readonly="1"/>
-                            <field name="amazon_is_business_order" readonly="1"/>
+                            <field name="amazon_is_business" readonly="1"/>
                             <field name="amazon_is_prime" readonly="1"/>
+                            <field name="amazon_buyer_vat" readonly="1"/>
                         </group>
                         <group string="Shipping">
-                            <field name="amazon_ship_service_level" readonly="1"/>
+                            <field name="amazon_carrier_name" readonly="1"/>
                             <field name="amazon_tracking_number" readonly="1"/>
                         </group>
                     </group>
@@ -116,7 +115,6 @@
         <field name="inherit_id" ref="sale.view_order_line_tree"/>
         <field name="arch" type="xml">
             <field name="product_id" position="after">
-                <field name="amazon_order_item_id" string="Amazon Item ID" optional="hide"/>
                 <field name="amazon_asin" string="ASIN" optional="hide"/>
                 <field name="amazon_sku" string="SKU" optional="hide"/>
             </field>
@@ -170,7 +168,7 @@
         <field name="state">code</field>
         <field name="code">
 if records.filtered(lambda r: r.is_amazon_order and r.amazon_fulfillment_channel == 'FBM'):
-    action = records.action_confirm_amazon_shipment()
+    action = records.action_amazon_confirm_shipment()
         </field>
     </record>
 
