@@ -616,12 +616,83 @@ class AmazonProductListing(models.Model):
 
     def action_update_price(self):
         """Push price update to Amazon."""
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_feeds import SPAPIFeeds
+
+        # 1. Validate all records first
         for record in self:
             if not record.list_price:
-                raise UserError(_('List price is required.'))
-            _logger.info('Updating price for %s to %s', 
-                        record.display_name, record.list_price)
-            # TODO: Implement via sp_api_feeds service
+                raise UserError(_('List price is required for %s') % record.display_name)
+
+        # 2. Group by Account and Marketplace
+        # Key: (account_id, marketplace_id)
+        grouped_records = {}
+        for record in self:
+            key = (record.account_id, record.marketplace_id)
+            if key not in grouped_records:
+                grouped_records[key] = self.env['amazon.product.listing']
+            grouped_records[key] |= record
+
+        # 3. Process each group
+        for (account, marketplace), records in grouped_records.items():
+            _logger.info(
+                'Updating prices for %d products (Account: %s, Marketplace: %s)',
+                len(records), account.name, marketplace.name
+            )
+
+            # Check credentials
+            if not all([account.lwa_client_id, account.lwa_client_secret, account.refresh_token]):
+                _logger.warning("Missing credentials for account %s, skipping.", account.name)
+                continue
+
+            try:
+                # Initialize client for this specific marketplace
+                client = OdooSPAPIClient(
+                    client_id=account.lwa_client_id,
+                    client_secret=account.lwa_client_secret,
+                    refresh_token=account.refresh_token,
+                    aws_access_key=account.aws_access_key,
+                    aws_secret_key=account.aws_secret_key,
+                    region=account.api_region,
+                    marketplace_id=marketplace.marketplace_id,
+                    sandbox=account.sandbox_mode
+                )
+
+                feeds = SPAPIFeeds(client)
+
+                # Prepare items
+                items = []
+                for record in records:
+                    item = {
+                        'sku': record.sku,
+                        'price': record.list_price,
+                    }
+                    if record.is_on_sale and record.sale_price:
+                        item['sale_price'] = record.sale_price
+                        if record.sale_price_start:
+                            item['sale_start'] = record.sale_price_start.strftime('%Y-%m-%dT%H:%M:%S')
+                        if record.sale_price_end:
+                            item['sale_end'] = record.sale_price_end.strftime('%Y-%m-%dT%H:%M:%S')
+                    items.append(item)
+
+                if not items:
+                    continue
+
+                # Submit feed
+                currency = marketplace.currency_id.name or 'EUR'
+                feeds.submit_price_update(items, currency_code=currency)
+
+                # Update last sync timestamp
+                records.write({'last_price_sync': fields.Datetime.now()})
+
+                _logger.info("Successfully submitted price update feed.")
+
+            except Exception as e:
+                _logger.error(
+                    "Failed to update prices for account %s: %s",
+                    account.name, str(e)
+                )
+                # We log the error but continue with other groups
 
     def action_sync_inventory(self):
         """Sync inventory levels from Amazon."""
