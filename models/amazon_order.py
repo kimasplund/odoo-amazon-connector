@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from ..services import encryption
 
 _logger = logging.getLogger(__name__)
 
@@ -159,12 +160,18 @@ class AmazonOrder(models.Model):
     # BUYER INFORMATION
     # ══════════════════════════════════════════════════════════════════════════
     
+    buyer_email_encrypted = fields.Char(string='Buyer Email (Encrypted)')
     buyer_email = fields.Char(
         string='Buyer Email',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
         help="Amazon-anonymized buyer email address"
     )
+    buyer_name_encrypted = fields.Char(string='Buyer Name (Encrypted)')
     buyer_name = fields.Char(
         string='Buyer Name',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
     )
     is_business_order = fields.Boolean(
         string='Business Order (B2B)',
@@ -190,17 +197,29 @@ class AmazonOrder(models.Model):
     # SHIPPING ADDRESS
     # ══════════════════════════════════════════════════════════════════════════
     
+    ship_name_encrypted = fields.Char(string='Ship To Name (Encrypted)')
     ship_name = fields.Char(
         string='Ship To Name',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
     )
+    ship_address_line1_encrypted = fields.Char(string='Address Line 1 (Encrypted)')
     ship_address_line1 = fields.Char(
         string='Address Line 1',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
     )
+    ship_address_line2_encrypted = fields.Char(string='Address Line 2 (Encrypted)')
     ship_address_line2 = fields.Char(
         string='Address Line 2',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
     )
+    ship_address_line3_encrypted = fields.Char(string='Address Line 3 (Encrypted)')
     ship_address_line3 = fields.Char(
         string='Address Line 3',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
     )
     ship_city = fields.Char(
         string='City',
@@ -221,8 +240,11 @@ class AmazonOrder(models.Model):
         compute='_compute_ship_country_id',
         store=True,
     )
+    ship_phone_encrypted = fields.Char(string='Phone (Encrypted)')
     ship_phone = fields.Char(
         string='Phone',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
     )
     address_type = fields.Selection(
         selection=[
@@ -343,12 +365,18 @@ class AmazonOrder(models.Model):
         default=False,
         help="True if VAT invoice is required (business orders)"
     )
+    buyer_tax_registration_id_encrypted = fields.Char(string='Buyer VAT Number (Encrypted)')
     buyer_tax_registration_id = fields.Char(
         string='Buyer VAT Number',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
         help="Buyer's VAT registration number for B2B orders"
     )
+    buyer_company_legal_name_encrypted = fields.Char(string='Buyer Company Name (Encrypted)')
     buyer_company_legal_name = fields.Char(
         string='Buyer Company Name',
+        compute='_compute_pii_fields',
+        inverse='_inverse_pii_fields',
         help="Legal company name for B2B orders"
     )
     
@@ -529,6 +557,77 @@ class AmazonOrder(models.Model):
         for order in self:
             order.is_fba = order.fulfillment_channel == 'AFN'
     
+    def _compute_pii_fields(self):
+        for record in self:
+            record.buyer_email = encryption.decrypt(self.env, record.buyer_email_encrypted) if record.buyer_email_encrypted else False
+            record.buyer_name = encryption.decrypt(self.env, record.buyer_name_encrypted) if record.buyer_name_encrypted else False
+            record.ship_name = encryption.decrypt(self.env, record.ship_name_encrypted) if record.ship_name_encrypted else False
+            record.ship_address_line1 = encryption.decrypt(self.env, record.ship_address_line1_encrypted) if record.ship_address_line1_encrypted else False
+            record.ship_address_line2 = encryption.decrypt(self.env, record.ship_address_line2_encrypted) if record.ship_address_line2_encrypted else False
+            record.ship_address_line3 = encryption.decrypt(self.env, record.ship_address_line3_encrypted) if record.ship_address_line3_encrypted else False
+            record.ship_phone = encryption.decrypt(self.env, record.ship_phone_encrypted) if record.ship_phone_encrypted else False
+            record.buyer_tax_registration_id = encryption.decrypt(self.env, record.buyer_tax_registration_id_encrypted) if record.buyer_tax_registration_id_encrypted else False
+            record.buyer_company_legal_name = encryption.decrypt(self.env, record.buyer_company_legal_name_encrypted) if record.buyer_company_legal_name_encrypted else False
+
+    def _inverse_pii_fields(self):
+        for record in self:
+            record.buyer_email_encrypted = encryption.encrypt(self.env, record.buyer_email) if record.buyer_email else False
+            record.buyer_name_encrypted = encryption.encrypt(self.env, record.buyer_name) if record.buyer_name else False
+            record.ship_name_encrypted = encryption.encrypt(self.env, record.ship_name) if record.ship_name else False
+            record.ship_address_line1_encrypted = encryption.encrypt(self.env, record.ship_address_line1) if record.ship_address_line1 else False
+            record.ship_address_line2_encrypted = encryption.encrypt(self.env, record.ship_address_line2) if record.ship_address_line2 else False
+            record.ship_address_line3_encrypted = encryption.encrypt(self.env, record.ship_address_line3) if record.ship_address_line3 else False
+            record.ship_phone_encrypted = encryption.encrypt(self.env, record.ship_phone) if record.ship_phone else False
+            record.buyer_tax_registration_id_encrypted = encryption.encrypt(self.env, record.buyer_tax_registration_id) if record.buyer_tax_registration_id else False
+            record.buyer_company_legal_name_encrypted = encryption.encrypt(self.env, record.buyer_company_legal_name) if record.buyer_company_legal_name else False
+
+    @api.model
+    def _cron_anonymize_pii(self):
+        """
+        Anonymize PII for orders older than 30 days to comply with Amazon DPP.
+        """
+        cutoff_date = fields.Datetime.now() - timedelta(days=30)
+
+        # Search for orders older than 30 days that still have PII
+        # We check encrypted fields as they are the source of truth
+        domain = [
+            ('purchase_date', '<', cutoff_date),
+            '|', '|', '|', '|', '|', '|', '|', '|',
+            ('buyer_email_encrypted', '!=', False),
+            ('buyer_name_encrypted', '!=', False),
+            ('ship_name_encrypted', '!=', False),
+            ('ship_address_line1_encrypted', '!=', False),
+            ('ship_address_line2_encrypted', '!=', False),
+            ('ship_address_line3_encrypted', '!=', False),
+            ('ship_phone_encrypted', '!=', False),
+            ('buyer_tax_registration_id_encrypted', '!=', False),
+            ('buyer_company_legal_name_encrypted', '!=', False),
+        ]
+
+        # Process in batches to avoid timeouts
+        orders = self.search(domain, limit=100)
+
+        while orders:
+            _logger.info("Anonymizing PII for %d Amazon orders", len(orders))
+
+            vals = {
+                'buyer_email': False,
+                'buyer_name': False,
+                'ship_name': False,
+                'ship_address_line1': False,
+                'ship_address_line2': False,
+                'ship_address_line3': False,
+                'ship_phone': False,
+                'buyer_tax_registration_id': False,
+                'buyer_company_legal_name': False,
+            }
+            orders.write(vals)
+
+            # Commit to ensure progress is saved if next batch fails
+            self.env.cr.commit()
+
+            orders = self.search(domain, limit=100)
+
     @api.depends('ship_country_code')
     def _compute_ship_country_id(self):
         Country = self.env['res.country']

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from ..services import encryption
 
 _logger = logging.getLogger(__name__)
 
@@ -62,14 +63,26 @@ class AmazonAccount(models.Model):
         groups='base.group_system',
         help='Login with Amazon App Client ID',
     )
+    lwa_client_secret_encrypted = fields.Char(
+        string='LWA Client Secret (Encrypted)',
+        groups='base.group_system',
+    )
     lwa_client_secret = fields.Char(
         string='LWA Client Secret',
         groups='base.group_system',
+        compute='_compute_lwa_credentials',
+        inverse='_inverse_lwa_credentials',
         help='Login with Amazon App Client Secret',
+    )
+    refresh_token_encrypted = fields.Char(
+        string='Refresh Token (Encrypted)',
+        groups='base.group_system',
     )
     refresh_token = fields.Char(
         string='Refresh Token',
         groups='base.group_system',
+        compute='_compute_lwa_credentials',
+        inverse='_inverse_lwa_credentials',
         help='OAuth refresh token for SP-API authentication',
     )
 
@@ -96,9 +109,15 @@ class AmazonAccount(models.Model):
         groups='base.group_system',
         help='AWS IAM access key for request signing',
     )
+    aws_secret_key_encrypted = fields.Char(
+        string='AWS Secret Key (Encrypted)',
+        groups='base.group_system',
+    )
     aws_secret_key = fields.Char(
         string='AWS Secret Key',
         groups='base.group_system',
+        compute='_compute_aws_credentials',
+        inverse='_inverse_aws_credentials',
         help='AWS IAM secret key for request signing',
     )
     aws_role_arn = fields.Char(
@@ -449,6 +468,24 @@ class AmazonAccount(models.Model):
     # -------------------------------------------------------------------------
     # COMPUTE METHODS
     # -------------------------------------------------------------------------
+    def _compute_lwa_credentials(self):
+        for record in self:
+            record.lwa_client_secret = encryption.decrypt(self.env, record.lwa_client_secret_encrypted) if record.lwa_client_secret_encrypted else False
+            record.refresh_token = encryption.decrypt(self.env, record.refresh_token_encrypted) if record.refresh_token_encrypted else False
+
+    def _inverse_lwa_credentials(self):
+        for record in self:
+            record.lwa_client_secret_encrypted = encryption.encrypt(self.env, record.lwa_client_secret) if record.lwa_client_secret else False
+            record.refresh_token_encrypted = encryption.encrypt(self.env, record.refresh_token) if record.refresh_token else False
+
+    def _compute_aws_credentials(self):
+        for record in self:
+            record.aws_secret_key = encryption.decrypt(self.env, record.aws_secret_key_encrypted) if record.aws_secret_key_encrypted else False
+
+    def _inverse_aws_credentials(self):
+        for record in self:
+            record.aws_secret_key_encrypted = encryption.encrypt(self.env, record.aws_secret_key) if record.aws_secret_key else False
+
     @api.depends('access_token', 'access_token_expiry')
     def _compute_token_valid(self):
         """Check if the access token is still valid."""
@@ -521,6 +558,7 @@ class AmazonAccount(models.Model):
     # -------------------------------------------------------------------------
     def write(self, vals):
         """Clear access token if credentials change."""
+        # Note: we check against the computed fields because encryption happens in inverse
         credential_fields = {
             'lwa_client_id', 'lwa_client_secret', 'refresh_token',
             'aws_access_key', 'aws_secret_key'
@@ -569,18 +607,30 @@ class AmazonAccount(models.Model):
                   'Client Secret, and Refresh Token.')
             )
 
-        # Token refresh implementation would go here
-        # This is a placeholder for the actual LWA API call
         _logger.info('Refreshing access token for account: %s', self.name)
         
         try:
-            # TODO: Implement actual LWA token refresh via sp_api_auth service
-            # token_data = self.env['sp.api.auth'].refresh_token(self)
-            # For now, raise not implemented
-            raise UserError(
-                _('SP-API authentication service not yet implemented. '
-                  'Please configure the sp_api_auth service.')
+            from ..services.sp_api_auth import SPAPIAuthenticator
+
+            auth = SPAPIAuthenticator(
+                client_id=self.lwa_client_id,
+                client_secret=self.lwa_client_secret,
+                refresh_token=self.refresh_token,
+                sandbox=self.sandbox_mode
             )
+            try:
+                token = auth.lwa_client.get_access_token()
+                expiry = auth.lwa_client._token_expiry
+                self.write({
+                    'access_token': token,
+                    'access_token_expiry': expiry,
+                    'state': 'active' if self.state == 'error' else self.state,
+                    'last_error': False,
+                })
+                return token
+            finally:
+                auth.close()
+
         except Exception as e:
             self.write({
                 'state': 'error',
@@ -667,15 +717,42 @@ class AmazonAccount(models.Model):
                 _('Missing credentials: %s') % ', '.join(missing)
             )
 
-        # TODO: Implement actual API test call via SP-API client
         _logger.info(
             'Testing connection for account %s (seller: %s, env: %s)',
             self.name, self.seller_id, self.environment
         )
         
-        # Placeholder - actual implementation would call:
-        # self.env['sp.api.client'].test_connection(self)
-        return True
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_orders import SPAPIOrders
+
+        # Use a temporary client to test connection
+        client = OdooSPAPIClient(
+            client_id=self.lwa_client_id,
+            client_secret=self.lwa_client_secret,
+            refresh_token=self.refresh_token,
+            aws_access_key=self.aws_access_key,
+            aws_secret_key=self.aws_secret_key,
+            region=self.api_region,
+            marketplace_id=self.default_marketplace_id.marketplace_id,
+            sandbox=self.sandbox_mode
+        )
+
+        try:
+            # First verify we can get an access token
+            client.auth.lwa_client.get_access_token()
+
+            # Then try a simple API call
+            orders_api = SPAPIOrders(client)
+            # Use get_orders with minimal range to be lightweight
+            orders_api.get_orders(
+                created_after=datetime.now() - timedelta(hours=24),
+                max_results_per_page=1
+            )
+            return True
+        except Exception as e:
+            raise UserError(_('Connection failed: %s') % str(e))
+        finally:
+            client.close()
 
     # -------------------------------------------------------------------------
     # SYNC ACTIONS

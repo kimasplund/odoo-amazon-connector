@@ -234,11 +234,19 @@ class SPAPIOrders:
         if next_token:
             params['NextToken'] = next_token
         
+        # Request RDT for PII access
+        restricted_resources = [{
+            'method': 'GET',
+            'path': f'/orders/{self.API_VERSION}/orders',
+            'dataElements': ['buyerInfo', 'shippingAddress']
+        }]
+
         return self.client.get(
             f'/orders/{self.API_VERSION}/orders',
             operation='getOrders',
             params=params,
             add_marketplace=False,
+            restricted_resources=restricted_resources,
         )
     
     def get_order(self, order_id: str) -> Dict[str, Any]:
@@ -251,9 +259,16 @@ class SPAPIOrders:
         Returns:
             Order details
         """
+        restricted_resources = [{
+            'method': 'GET',
+            'path': f'/orders/{self.API_VERSION}/orders/{order_id}',
+            'dataElements': ['buyerInfo', 'shippingAddress']
+        }]
+
         return self.client.get(
             f'/orders/{self.API_VERSION}/orders/{order_id}',
             operation='getOrder',
+            restricted_resources=restricted_resources,
         )
     
     def get_order_buyer_info(self, order_id: str) -> Dict[str, Any]:
@@ -268,9 +283,16 @@ class SPAPIOrders:
         Returns:
             Buyer information
         """
+        restricted_resources = [{
+            'method': 'GET',
+            'path': f'/orders/{self.API_VERSION}/orders/{order_id}/buyerInfo',
+            'dataElements': ['buyerInfo']
+        }]
+
         return self.client.get(
             f'/orders/{self.API_VERSION}/orders/{order_id}/buyerInfo',
             operation='getOrderBuyerInfo',
+            restricted_resources=restricted_resources,
         )
     
     def get_order_address(self, order_id: str) -> Dict[str, Any]:
@@ -285,9 +307,16 @@ class SPAPIOrders:
         Returns:
             Shipping address
         """
+        restricted_resources = [{
+            'method': 'GET',
+            'path': f'/orders/{self.API_VERSION}/orders/{order_id}/address',
+            'dataElements': ['shippingAddress']
+        }]
+
         return self.client.get(
             f'/orders/{self.API_VERSION}/orders/{order_id}/address',
             operation='getOrderAddress',
+            restricted_resources=restricted_resources,
         )
     
     def get_orders_all(
@@ -367,10 +396,17 @@ class SPAPIOrders:
         if next_token:
             params['NextToken'] = next_token
         
+        restricted_resources = [{
+            'method': 'GET',
+            'path': f'/orders/{self.API_VERSION}/orders/{order_id}/orderItems',
+            'dataElements': ['buyerInfo']
+        }]
+
         return self.client.get(
             f'/orders/{self.API_VERSION}/orders/{order_id}/orderItems',
             operation='getOrderItems',
             params=params if params else None,
+            restricted_resources=restricted_resources,
         )
     
     def get_order_items_buyer_info(
@@ -393,11 +429,18 @@ class SPAPIOrders:
         params = {}
         if next_token:
             params['NextToken'] = next_token
+
+        restricted_resources = [{
+            'method': 'GET',
+            'path': f'/orders/{self.API_VERSION}/orders/{order_id}/orderItems/buyerInfo',
+            'dataElements': ['buyerInfo']
+        }]
         
         return self.client.get(
             f'/orders/{self.API_VERSION}/orders/{order_id}/orderItems/buyerInfo',
             operation='getOrderItemsBuyerInfo',
             params=params if params else None,
+            restricted_resources=restricted_resources,
         )
     
     def get_order_items_all(
