@@ -1,165 +1,70 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-# ============================================
-# Amazon Marketplace
-# ============================================
 access_amazon_marketplace_user,amazon.marketplace.user,model_amazon_marketplace,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_marketplace_manager,amazon.marketplace.manager,model_amazon_marketplace,amazon_connector.group_amazon_manager,1,0,0,0
 access_amazon_marketplace_admin,amazon.marketplace.admin,model_amazon_marketplace,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Account
-# ============================================
 access_amazon_account_user,amazon.account.user,model_amazon_account,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_account_manager,amazon.account.manager,model_amazon_account,amazon_connector.group_amazon_manager,1,0,0,0
 access_amazon_account_admin,amazon.account.admin,model_amazon_account,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Credential (Sensitive - Admin Only)
-# ============================================
 access_amazon_credential_admin,amazon.credential.admin,model_amazon_credential,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Product Listing
-# ============================================
 access_amazon_product_listing_user,amazon.product.listing.user,model_amazon_product_listing,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_product_listing_manager,amazon.product.listing.manager,model_amazon_product_listing,amazon_connector.group_amazon_manager,1,1,1,1
 access_amazon_product_listing_admin,amazon.product.listing.admin,model_amazon_product_listing,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Product Category
-# ============================================
 access_amazon_product_category_user,amazon.product.category.user,model_amazon_product_category,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_product_category_manager,amazon.product.category.manager,model_amazon_product_category,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_product_category_admin,amazon.product.category.admin,model_amazon_product_category,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Sync Log
-# ============================================
 access_amazon_sync_log_user,amazon.sync.log.user,model_amazon_sync_log,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_sync_log_manager,amazon.sync.log.manager,model_amazon_sync_log,amazon_connector.group_amazon_manager,1,0,0,0
 access_amazon_sync_log_admin,amazon.sync.log.admin,model_amazon_sync_log,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Order
-# ============================================
 access_amazon_order_user,amazon.order.user,model_amazon_order,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_order_manager,amazon.order.manager,model_amazon_order,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_order_admin,amazon.order.admin,model_amazon_order,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Order Line
-# ============================================
 access_amazon_order_line_user,amazon.order.line.user,model_amazon_order_line,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_order_line_manager,amazon.order.line.manager,model_amazon_order_line,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_order_line_admin,amazon.order.line.admin,model_amazon_order_line,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Return
-# ============================================
 access_amazon_return_user,amazon.return.user,model_amazon_return,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_return_manager,amazon.return.manager,model_amazon_return,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_return_admin,amazon.return.admin,model_amazon_return,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon FBA Shipment
-# ============================================
 access_amazon_fba_shipment_user,amazon.fba.shipment.user,model_amazon_fba_shipment,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_fba_shipment_manager,amazon.fba.shipment.manager,model_amazon_fba_shipment,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_fba_shipment_admin,amazon.fba.shipment.admin,model_amazon_fba_shipment,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon FBA Shipment Item
-# ============================================
 access_amazon_fba_shipment_item_user,amazon.fba.shipment.item.user,model_amazon_fba_shipment_item,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_fba_shipment_item_manager,amazon.fba.shipment.item.manager,model_amazon_fba_shipment_item,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_fba_shipment_item_admin,amazon.fba.shipment.item.admin,model_amazon_fba_shipment_item,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon FBA Inventory
-# ============================================
 access_amazon_fba_inventory_user,amazon.fba.inventory.user,model_amazon_fba_inventory,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_fba_inventory_manager,amazon.fba.inventory.manager,model_amazon_fba_inventory,amazon_connector.group_amazon_manager,1,1,0,0
 access_amazon_fba_inventory_admin,amazon.fba.inventory.admin,model_amazon_fba_inventory,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Settlement
-# ============================================
 access_amazon_settlement_user,amazon.settlement.user,model_amazon_settlement,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_settlement_manager,amazon.settlement.manager,model_amazon_settlement,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_settlement_admin,amazon.settlement.admin,model_amazon_settlement,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Settlement Line
-# ============================================
 access_amazon_settlement_line_user,amazon.settlement.line.user,model_amazon_settlement_line,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_settlement_line_manager,amazon.settlement.line.manager,model_amazon_settlement_line,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_settlement_line_admin,amazon.settlement.line.admin,model_amazon_settlement_line,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Fee
-# ============================================
 access_amazon_fee_user,amazon.fee.user,model_amazon_fee,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_fee_manager,amazon.fee.manager,model_amazon_fee,amazon_connector.group_amazon_manager,1,0,0,0
 access_amazon_fee_admin,amazon.fee.admin,model_amazon_fee,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Pricing Rule
-# ============================================
 access_amazon_pricing_rule_user,amazon.pricing.rule.user,model_amazon_pricing_rule,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_pricing_rule_manager,amazon.pricing.rule.manager,model_amazon_pricing_rule,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_pricing_rule_admin,amazon.pricing.rule.admin,model_amazon_pricing_rule,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Competitor Price
-# ============================================
 access_amazon_competitor_price_user,amazon.competitor.price.user,model_amazon_competitor_price,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_competitor_price_manager,amazon.competitor.price.manager,model_amazon_competitor_price,amazon_connector.group_amazon_manager,1,0,0,0
 access_amazon_competitor_price_admin,amazon.competitor.price.admin,model_amazon_competitor_price,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Pricing Recommendation
-# ============================================
 access_amazon_pricing_recommendation_user,amazon.pricing.recommendation.user,model_amazon_pricing_recommendation,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_pricing_recommendation_manager,amazon.pricing.recommendation.manager,model_amazon_pricing_recommendation,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_pricing_recommendation_admin,amazon.pricing.recommendation.admin,model_amazon_pricing_recommendation,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Price History
-# ============================================
 access_amazon_price_history_user,amazon.price.history.user,model_amazon_price_history,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_price_history_manager,amazon.price.history.manager,model_amazon_price_history,amazon_connector.group_amazon_manager,1,0,0,0
 access_amazon_price_history_admin,amazon.price.history.admin,model_amazon_price_history,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Demand History
-# ============================================
 access_amazon_demand_history_user,amazon.demand.history.user,model_amazon_demand_history,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_demand_history_manager,amazon.demand.history.manager,model_amazon_demand_history,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_demand_history_admin,amazon.demand.history.admin,model_amazon_demand_history,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Inventory Forecast
-# ============================================
 access_amazon_inventory_forecast_user,amazon.inventory.forecast.user,model_amazon_inventory_forecast,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_inventory_forecast_manager,amazon.inventory.forecast.manager,model_amazon_inventory_forecast,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_inventory_forecast_admin,amazon.inventory.forecast.admin,model_amazon_inventory_forecast,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Restock Suggestion
-# ============================================
 access_amazon_restock_suggestion_user,amazon.restock.suggestion.user,model_amazon_restock_suggestion,amazon_connector.group_amazon_user,1,0,0,0
 access_amazon_restock_suggestion_manager,amazon.restock.suggestion.manager,model_amazon_restock_suggestion,amazon_connector.group_amazon_manager,1,1,1,0
 access_amazon_restock_suggestion_admin,amazon.restock.suggestion.admin,model_amazon_restock_suggestion,amazon_connector.group_amazon_admin,1,1,1,1
-
-# ============================================
-# Amazon Restock Dismiss Wizard (Transient)
-# ============================================
 access_amazon_restock_dismiss_wizard_user,amazon.restock.dismiss.wizard.user,model_amazon_restock_dismiss_wizard,amazon_connector.group_amazon_user,1,1,1,1
 access_amazon_restock_dismiss_wizard_manager,amazon.restock.dismiss.wizard.manager,model_amazon_restock_dismiss_wizard,amazon_connector.group_amazon_manager,1,1,1,1
-
-# ============================================
-# Amazon Bulk Reprice Wizard (Transient)
-# ============================================
 access_amazon_bulk_reprice_wizard_user,amazon.bulk.reprice.wizard.user,model_amazon_bulk_reprice_wizard,amazon_connector.group_amazon_user,1,1,1,1
 access_amazon_bulk_reprice_wizard_line_user,amazon.bulk.reprice.wizard.line.user,model_amazon_bulk_reprice_wizard_line,amazon_connector.group_amazon_user,1,1,1,1
 access_amazon_pricing_recommendation_dismiss_wizard_user,amazon.pricing.recommendation.dismiss.wizard.user,model_amazon_pricing_recommendation_dismiss_wizard,amazon_connector.group_amazon_user,1,1,1,1
