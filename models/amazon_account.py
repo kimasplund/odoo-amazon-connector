@@ -2,6 +2,7 @@
 
 import logging
 import json
+from datetime import datetime, timedelta
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
@@ -573,29 +574,6 @@ class AmazonAccount(models.Model):
     # -------------------------------------------------------------------------
     # API AUTHENTICATION
     # -------------------------------------------------------------------------
-    def get_sp_api_client(self):
-        """Get an authenticated SP-API client for this account.
-
-        Returns:
-            OdooSPAPIClient: Configured API client
-        """
-        self.ensure_one()
-        from ..services.sp_api_client import OdooSPAPIClient
-
-        if not self.lwa_client_id:
-            raise UserError(_('Credentials not configured for account %s') % self.name)
-
-        return OdooSPAPIClient(
-            client_id=self.lwa_client_id,
-            client_secret=self.lwa_client_secret,
-            refresh_token=self.refresh_token,
-            aws_access_key=self.aws_access_key,
-            aws_secret_key=self.aws_secret_key,
-            region=self.api_region,
-            marketplace_id=self.default_marketplace_id.marketplace_id,
-            sandbox=self.sandbox_mode
-        )
-
     def _get_access_token(self):
         """Get a valid access token, refreshing if necessary.
         
@@ -632,7 +610,6 @@ class AmazonAccount(models.Model):
         _logger.info('Refreshing access token for account: %s', self.name)
         
         try:
-            # Import here to avoid potential circular dependency during module loading
             from ..services.sp_api_auth import SPAPIAuthenticator
 
             auth = SPAPIAuthenticator(
@@ -655,7 +632,6 @@ class AmazonAccount(models.Model):
                 auth.close()
 
         except Exception as e:
-            _logger.exception("Failed to refresh access token for account %s", self.name)
             self.write({
                 'state': 'error',
                 'last_error': str(e),
@@ -667,35 +643,6 @@ class AmazonAccount(models.Model):
     # -------------------------------------------------------------------------
     # CONNECTION TESTING
     # -------------------------------------------------------------------------
-    def get_sp_api_client(self):
-        """Get an SP-API client for this account.
-
-        Returns:
-            OdooSPAPIClient: Configured API client
-        """
-        self.ensure_one()
-        from ..services.sp_api_client import OdooSPAPIClient
-
-        if not all([
-            self.lwa_client_id,
-            self.lwa_client_secret,
-            self.refresh_token,
-            self.aws_access_key,
-            self.aws_secret_key
-        ]):
-            raise UserError(_('Missing credentials. Please check your configuration.'))
-
-        return OdooSPAPIClient(
-            client_id=self.lwa_client_id,
-            client_secret=self.lwa_client_secret,
-            refresh_token=self.refresh_token,
-            aws_access_key=self.aws_access_key,
-            aws_secret_key=self.aws_secret_key,
-            region=self.api_region,
-            marketplace_id=self.default_marketplace_id.marketplace_id,
-            sandbox=self.sandbox_mode
-        )
-
     def action_test_connection(self):
         """Test the API connection and validate credentials.
         
@@ -776,26 +723,31 @@ class AmazonAccount(models.Model):
         )
         
         from ..services.sp_api_client import OdooSPAPIClient
-        from ..services.sp_api_sellers import SPAPISellers
+        from ..services.sp_api_orders import SPAPIOrders
 
         # Use a temporary client to test connection
-        client = self.get_sp_api_client()
+        client = OdooSPAPIClient(
+            client_id=self.lwa_client_id,
+            client_secret=self.lwa_client_secret,
+            refresh_token=self.refresh_token,
+            aws_access_key=self.aws_access_key,
+            aws_secret_key=self.aws_secret_key,
+            region=self.api_region,
+            marketplace_id=self.default_marketplace_id.marketplace_id,
+            sandbox=self.sandbox_mode
+        )
 
         try:
             # First verify we can get an access token
             client.auth.lwa_client.get_access_token()
 
             # Then try a simple API call
-            # We use get_marketplace_participations as it requires minimal permissions
-            # and validates that the seller is active in at least one marketplace
-            sellers_api = SPAPISellers(client)
-            result = sellers_api.get_marketplace_participations()
-
-            # Verify response structure
-            payload = result.get('payload', result)
-            if not isinstance(payload, list):
-                _logger.warning("Unexpected response format from get_marketplace_participations: %s", result)
-
+            orders_api = SPAPIOrders(client)
+            # Use get_orders with minimal range to be lightweight
+            orders_api.get_orders(
+                created_after=datetime.now() - timedelta(hours=24),
+                max_results_per_page=1
+            )
             return True
         except Exception as e:
             raise UserError(_('Connection failed: %s') % str(e))
@@ -846,24 +798,16 @@ class AmazonAccount(models.Model):
         """Sync orders from Amazon."""
         _logger.info('Syncing orders for account: %s', self.name)
 
-        self.ensure_one()
-
         from ..services.sp_api_client import OdooSPAPIClient
         from ..services.sp_api_orders import SPAPIOrders
 
-        # Determine time range
-        # If we have a last sync date, check for updates since then.
-        # Otherwise, fetch orders created in the last N days.
-        created_after = None
-        last_updated_after = None
+        self.ensure_one()
 
-        if self.last_sync_date:
-            # Go back slightly to ensure no overlap overlap/gaps
-            last_updated_after = self.last_sync_date - timedelta(minutes=5)
-        else:
-            created_after = fields.Datetime.now() - timedelta(days=self.order_sync_days)
+        # Create sync log
+        log = self.env['amazon.sync.log'].create_log(self.id, 'order_sync')
 
         try:
+            # Initialize client
             client = OdooSPAPIClient(
                 client_id=self.lwa_client_id,
                 client_secret=self.lwa_client_secret,
@@ -875,202 +819,88 @@ class AmazonAccount(models.Model):
                 sandbox=self.sandbox_mode
             )
 
-            try:
-                orders_api = SPAPIOrders(client)
+            orders_api = SPAPIOrders(client)
 
-                # Fetch orders (handles pagination)
-                # We filter by our account's marketplaces
-                marketplace_ids = self.marketplace_ids.mapped('marketplace_id')
+            # Determine time range
+            if self.last_sync_date:
+                # Add a small buffer overlap to ensure no missed orders
+                created_after = self.last_sync_date - timedelta(minutes=15)
+            else:
+                days = self.order_sync_days or 30
+                created_after = fields.Datetime.now() - timedelta(days=days)
 
-                orders = orders_api.get_orders_all(
-                    created_after=created_after,
-                    last_updated_after=last_updated_after,
-                    marketplace_ids=marketplace_ids
-                )
+            _logger.info("Fetching orders created after %s", created_after)
 
-                _logger.info("Fetched %d orders for account %s", len(orders), self.name)
+            # Fetch orders
+            orders = orders_api.get_orders_all(created_after=created_after)
 
-                # Initialize caches for performance optimization
-                marketplace_cache = {}
-                currency_cache = {}
+            processed_count = 0
+            error_count = 0
 
-                AmazonOrder = self.env['amazon.order']
+            AmazonOrder = self.env['amazon.order']
+            AmazonOrderLine = self.env['amazon.order.line']
 
-                # Process orders
-                count = 0
-                for order_data in orders:
-                    try:
-                        AmazonOrder.create_from_spapi(
-                            self,
-                            order_data,
-                            marketplace_cache=marketplace_cache,
-                            currency_cache=currency_cache
-                        )
-                        count += 1
-                        # Commit periodically
-                        if count % 10 == 0:
-                            self.env.cr.commit()
-                    except Exception as e:
-                        _logger.exception(
-                            "Failed to import order %s: %s",
-                            order_data.get('AmazonOrderId'), e
-                        )
+            for order_data in orders:
+                try:
+                    # Create/Update Order
+                    order = AmazonOrder.create_from_spapi(self, order_data)
 
-            finally:
-                client.close()
+                    # Fetch items
+                    items = orders_api.get_order_items_all(order.amazon_order_id)
+
+                    for item_data in items:
+                        AmazonOrderLine.create_from_spapi(order, item_data)
+
+                    processed_count += 1
+
+                    # Commit every 10 orders
+                    if processed_count % 10 == 0:
+                        self.env.cr.commit()
+
+                except Exception as e:
+                    error_count += 1
+                    _logger.error("Failed to sync order %s: %s",
+                                  order_data.get('AmazonOrderId'), str(e))
+
+            # Update account last sync date
+            self.write({
+                'last_sync_date': fields.Datetime.now(),
+                'last_error': False,
+                'sync_status': 'idle',
+            })
+
+            # Complete log
+            status = 'success'
+            if error_count > 0:
+                status = 'warning' if processed_count > 0 else 'error'
+
+            log.complete(
+                status=status,
+                message=f"Processed {processed_count} orders. Errors: {error_count}",
+                record_count=processed_count,
+                error_count=error_count
+            )
+
+            client.close()
 
         except Exception as e:
-            _logger.exception("Order sync failed for account %s", self.name)
-            # Don't raise, just log, so other sync jobs can proceed if called from sync_all
+            msg = f"Order sync failed: {str(e)}"
+            _logger.exception(msg)
             self.write({
-                'last_error': str(e),
-                'sync_status': 'error'
+                'sync_status': 'error',
+                'last_error': msg
             })
-            return
+            log.log_error(msg)
 
     def _sync_inventory(self):
         """Sync inventory levels."""
         _logger.info('Syncing inventory for account: %s', self.name)
-
-        from ..services.sp_api_client import OdooSPAPIClient
-        from ..services.sp_api_fba import SPAPIFba
-
-        for marketplace in self.marketplace_ids:
-            try:
-                _logger.info('Fetching inventory for marketplace: %s', marketplace.name)
-
-                client = OdooSPAPIClient(
-                    client_id=self.lwa_client_id,
-                    client_secret=self.lwa_client_secret,
-                    refresh_token=self.refresh_token,
-                    aws_access_key=self.aws_access_key,
-                    aws_secret_key=self.aws_secret_key,
-                    region=marketplace.region,
-                    marketplace_id=marketplace.marketplace_id,
-                    sandbox=self.sandbox_mode
-                )
-
-                fba_api = SPAPIFba(client)
-
-                # Fetch all inventory summaries
-                summaries = fba_api.get_inventory_summaries_all(
-                    granularity_type='Marketplace',
-                    granularity_id=marketplace.marketplace_id,
-                    marketplace_ids=[marketplace.marketplace_id]
-                )
-
-                # Process summaries
-                for summary in summaries:
-                    sku = summary.get('sellerSku')
-                    if not sku:
-                        continue
-
-                    listing = self.env['amazon.product.listing'].search([
-                        ('account_id', '=', self.id),
-                        ('marketplace_id', '=', marketplace.id),
-                        ('sku', '=', sku)
-                    ], limit=1)
-
-                    if listing:
-                        details = summary.get('inventoryDetails', {})
-                        reserved = details.get('reservedQuantity', {})
-                        unfulfillable = details.get('unfulfillableQuantity', {})
-
-                        listing.write({
-                            'quantity_available': details.get('fulfillableQuantity', 0),
-                            'quantity_inbound': (
-                                details.get('inboundWorkingQuantity', 0) +
-                                details.get('inboundShippedQuantity', 0) +
-                                details.get('inboundReceivingQuantity', 0)
-                            ),
-                            'quantity_reserved': reserved.get('totalReservedQuantity', 0),
-                            'quantity_unfulfillable': unfulfillable.get('totalUnfulfillableQuantity', 0),
-                            'last_inventory_sync': fields.Datetime.now(),
-                        })
-
-            except Exception as e:
-                _logger.error('Failed to sync inventory for marketplace %s: %s',
-                             marketplace.name, str(e))
+        # TODO: Implement via sp_api_fba service
 
     def _sync_fba(self):
         """Sync FBA data (shipments, inventory)."""
         _logger.info('Syncing FBA data for account: %s', self.name)
-        self.write({'sync_status': 'syncing'})
-
-        from ..services.sp_api_client import OdooSPAPIClient
-        from ..services.sp_api_fba import SPAPIFba
-
-        try:
-            # Determine marketplace
-            marketplace = self.default_marketplace_id or self.marketplace_ids[:1]
-            if not marketplace:
-                raise UserError(_('No marketplace configured for this account.'))
-
-            # Initialize client
-            client = OdooSPAPIClient(
-                client_id=self.lwa_client_id,
-                client_secret=self.lwa_client_secret,
-                refresh_token=self.refresh_token,
-                aws_access_key=self.aws_access_key,
-                aws_secret_key=self.aws_secret_key,
-                region=self.api_region,
-                marketplace_id=marketplace.marketplace_id,
-                sandbox=self.sandbox_mode
-            )
-
-            fba_api = SPAPIFba(client)
-
-            # 1. Sync Inventory
-            _logger.info("Fetching FBA inventory summaries for account %s...", self.name)
-            inventory_summaries = fba_api.get_inventory_summaries_all()
-
-            for summary in inventory_summaries:
-                self.env['amazon.fba.inventory']._update_or_create_from_amazon(
-                    self.id,
-                    marketplace.id,
-                    summary
-                )
-
-            # 2. Sync Shipments
-            _logger.info("Fetching FBA shipments for account %s...", self.name)
-            # Sync last 30 days by default
-            last_updated_after = datetime.now() - timedelta(days=30)
-
-            # Fetch all pages of shipments
-            next_token = None
-            while True:
-                shipments_resp = fba_api.get_shipments(
-                    last_updated_after=last_updated_after,
-                    query_type="DATE_RANGE",
-                    next_token=next_token
-                )
-
-                payload = shipments_resp.get('payload', {})
-                shipments = payload.get('ShipmentData', [])
-
-                for shipment_data in shipments:
-                    self.env['amazon.fba.shipment']._update_or_create_from_amazon(
-                        self.id,
-                        marketplace.id,
-                        shipment_data
-                    )
-
-                next_token = payload.get('NextToken')
-                if not next_token:
-                    break
-
-            self.write({
-                'last_sync_date': fields.Datetime.now(),
-                'sync_status': 'idle',
-                'last_error': False,
-            })
-
-        except Exception as e:
-            _logger.exception("Failed to sync FBA data for account %s: %s", self.name, str(e))
-            self.write({
-                'last_error': str(e),
-                'sync_status': 'error',
-            })
+        # TODO: Implement via sp_api_fba service
 
     # -------------------------------------------------------------------------
     # NAVIGATION ACTIONS
