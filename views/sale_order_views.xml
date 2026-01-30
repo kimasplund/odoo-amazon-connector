@@ -87,20 +87,16 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.sale_order_view_search_inherit_quotation"/>
         <field name="arch" type="xml">
-            <filter name="my_sale_orders_filter" position="after">
+            <xpath expr="//search" position="inside">
                 <separator/>
                 <filter name="filter_amazon" string="Amazon Orders" domain="[('is_amazon_order', '=', True)]"/>
                 <filter name="filter_amazon_fba" string="Amazon FBA" domain="[('amazon_fulfillment_channel', '=', 'FBA')]"/>
                 <filter name="filter_amazon_fbm" string="Amazon FBM" domain="[('amazon_fulfillment_channel', '=', 'FBM')]"/>
-            </filter>
-            <filter name="filter_create_date" position="after">
                 <separator/>
                 <filter name="group_amazon_marketplace" string="Amazon Marketplace" context="{'group_by': 'amazon_marketplace_id'}"/>
                 <filter name="group_amazon_channel" string="Fulfillment Channel" context="{'group_by': 'amazon_fulfillment_channel'}"/>
-            </filter>
-            <field name="name" position="after">
                 <field name="amazon_order_ref"/>
-            </field>
+            </xpath>
         </field>
     </record>
 
