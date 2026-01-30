@@ -633,6 +633,7 @@ class AmazonAccount(models.Model):
         _logger.info('Refreshing access token for account: %s', self.name)
         
         try:
+            # Import here to avoid potential circular dependency during module loading
             from ..services.sp_api_auth import SPAPIAuthenticator
 
             auth = SPAPIAuthenticator(
@@ -655,6 +656,7 @@ class AmazonAccount(models.Model):
                 auth.close()
 
         except Exception as e:
+            _logger.exception("Failed to refresh access token for account %s", self.name)
             self.write({
                 'state': 'error',
                 'last_error': str(e),
