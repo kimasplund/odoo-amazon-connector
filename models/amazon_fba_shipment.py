@@ -532,6 +532,18 @@ class AmazonFBAShipment(models.Model):
             'context': {'default_amazon_fba_shipment_id': self.id},
         }
     
+    def action_view_items(self):
+        """View shipment items."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Shipment Items'),
+            'res_model': 'amazon.fba.shipment.item',
+            'domain': [('shipment_id', '=', self.id)],
+            'view_mode': 'tree,form',
+            'context': {'default_shipment_id': self.id},
+        }
+    
     def action_print_labels(self):
         """Print shipping labels for this shipment."""
         self.ensure_one()
