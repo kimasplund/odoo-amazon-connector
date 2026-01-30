@@ -2,7 +2,6 @@
 
 import logging
 import json
-from datetime import datetime, timedelta
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
@@ -776,7 +775,8 @@ class AmazonAccount(models.Model):
             self.name, self.seller_id, self.environment
         )
         
-        from ..services.sp_api_orders import SPAPIOrders
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_sellers import SPAPISellers
 
         # Use a temporary client to test connection
         client = self.get_sp_api_client()
@@ -786,12 +786,16 @@ class AmazonAccount(models.Model):
             client.auth.lwa_client.get_access_token()
 
             # Then try a simple API call
-            orders_api = SPAPIOrders(client)
-            # Use get_orders with minimal range to be lightweight
-            orders_api.get_orders(
-                created_after=datetime.now() - timedelta(hours=24),
-                max_results_per_page=1
-            )
+            # We use get_marketplace_participations as it requires minimal permissions
+            # and validates that the seller is active in at least one marketplace
+            sellers_api = SPAPISellers(client)
+            result = sellers_api.get_marketplace_participations()
+
+            # Verify response structure
+            payload = result.get('payload', result)
+            if not isinstance(payload, list):
+                _logger.warning("Unexpected response format from get_marketplace_participations: %s", result)
+
             return True
         except Exception as e:
             raise UserError(_('Connection failed: %s') % str(e))
