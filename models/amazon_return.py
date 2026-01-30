@@ -6,6 +6,9 @@ from datetime import datetime
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
+from ..services.sp_api_client import OdooSPAPIClient, SPAPIError
+from ..services.sp_api_feeds import SPAPIFeeds
+
 _logger = logging.getLogger(__name__)
 
 
@@ -645,8 +648,102 @@ class AmazonReturn(models.Model):
         if self.state == 'completed':
             raise UserError(_("Refund already processed."))
         
-        # TODO: Implement SP-API refund
-        raise NotImplementedError("SP-API refund not yet implemented")
+        if not self.order_line_id:
+            raise UserError(_("Order line is required for Amazon refund."))
+
+        if not self.account_id:
+            raise UserError(_("Amazon account is required."))
+
+        # Map return reason
+        reason_map = {
+            'BUYER_CHANGED_MIND': 'NoLongerNeeded',
+            'NOT_NEEDED': 'NoLongerNeeded',
+            'UNWANTED_GIFT': 'NoLongerNeeded',
+            'ORDERED_WRONG': 'NoLongerNeeded',
+            'FOUND_BETTER_PRICE': 'NoLongerNeeded',
+            'DAMAGED_BY_CARRIER': 'CustomerReturn',
+            'DEFECTIVE': 'CustomerReturn',
+            'QUALITY_ISSUE': 'CustomerReturn',
+            'DIFFERENT_FROM_WEBSITE': 'DifferentItem',
+            'NOT_AS_DESCRIBED': 'DifferentItem',
+            'WRONG_ITEM_SENT': 'DifferentItem',
+            'LATE_DELIVERY': 'GeneralAdjustment',
+            'MISSED_DELIVERY': 'GeneralAdjustment',
+        }
+        reason = reason_map.get(self.return_reason_code, 'GeneralAdjustment')
+
+        # Build components
+        components = []
+        currency = self.currency_id.name or 'EUR'
+
+        if self.refund_item_price:
+            components.append({
+                'type': 'Principal',
+                'amount': self.refund_item_price,
+                'currency': currency,
+            })
+        if self.refund_shipping:
+            components.append({
+                'type': 'Shipping',
+                'amount': self.refund_shipping,
+                'currency': currency,
+            })
+        if self.refund_tax:
+            components.append({
+                'type': 'Tax',
+                'amount': self.refund_tax,
+                'currency': currency,
+            })
+        if self.refund_gift_wrap:
+            components.append({
+                'type': 'GiftWrap',
+                'amount': self.refund_gift_wrap,
+                'currency': currency,
+            })
+
+        if not components:
+            raise UserError(_("No refund amounts specified."))
+
+        # Prepare adjustments
+        adjustments = [{
+            'order_id': self.amazon_order_ref,
+            'order_item_id': self.order_line_id.order_item_id,
+            'adjustment_id': self.return_id or f"REF-{self.id}",
+            'reason': reason,
+            'components': components,
+        }]
+
+        try:
+            # Initialize client
+            client = OdooSPAPIClient.from_credential_record(self.account_id)
+            feeds_api = SPAPIFeeds(client)
+
+            # Submit feed
+            feeds_api.submit_payment_adjustment(
+                adjustments=adjustments,
+                merchant_id=self.account_id.seller_id,
+                wait_for_completion=False  # Don't block UI
+            )
+
+            # Update state
+            self.write({
+                'state': 'completed',
+                'refund_date': fields.Datetime.now(),
+                'sync_status': 'synced',
+                'last_sync_date': fields.Datetime.now(),
+            })
+
+            # Log success
+            self.message_post(body=_("Refund submitted to Amazon."))
+
+        except SPAPIError as e:
+            raise UserError(_("Failed to submit refund: %s") % str(e))
+        except Exception as e:
+            _logger.exception("Error issuing Amazon refund")
+            raise UserError(_("Error issuing refund: %s") % str(e))
+        finally:
+            if 'client' in locals():
+                client.close()
     
     # ══════════════════════════════════════════════════════════════════════════
     # IMPORT FROM REPORTS

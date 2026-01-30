@@ -43,6 +43,7 @@ class FeedType(str, Enum):
     POST_ORDER_ACKNOWLEDGEMENT_DATA = "POST_ORDER_ACKNOWLEDGEMENT_DATA"
     POST_ORDER_FULFILLMENT_DATA = "POST_ORDER_FULFILLMENT_DATA"
     POST_INVOICE_CONFIRMATION_DATA = "POST_INVOICE_CONFIRMATION_DATA"
+    POST_PAYMENT_ADJUSTMENT_DATA = "POST_PAYMENT_ADJUSTMENT_DATA"
     
     # FBA feeds
     POST_FBA_INBOUND_CARTON_CONTENTS = "POST_FBA_INBOUND_CARTON_CONTENTS"
@@ -100,6 +101,7 @@ class SPAPIFeeds:
         FeedType.POST_ORDER_ACKNOWLEDGEMENT_DATA: FeedContentType.XML,
         FeedType.POST_ORDER_FULFILLMENT_DATA: FeedContentType.XML,
         FeedType.POST_INVOICE_CONFIRMATION_DATA: FeedContentType.XML,
+        FeedType.POST_PAYMENT_ADJUSTMENT_DATA: FeedContentType.XML,
         FeedType.POST_FBA_INBOUND_CARTON_CONTENTS: FeedContentType.XML,
         
         # JSON feeds
@@ -864,6 +866,58 @@ class SPAPIFeeds:
         
         return xml
     
+    def build_payment_adjustment_feed_xml(
+        self,
+        adjustments: List[Dict[str, Any]],
+        merchant_id: str = "",
+    ) -> str:
+        """
+        Build XML payment adjustment (refund) feed.
+
+        Args:
+            adjustments: List of adjustment info with order_id, order_item_id, reason, components
+            merchant_id: Seller merchant ID
+
+        Returns:
+            XML feed string
+        """
+        messages = []
+        for i, adj in enumerate(adjustments, 1):
+            components_xml = ""
+            for comp in adj.get('components', []):
+                components_xml += f"""
+                    <Component>
+                        <Type>{comp['type']}</Type>
+                        <Amount currency="{comp['currency']}">{comp['amount']:.2f}</Amount>
+                    </Component>"""
+
+            messages.append(f"""
+    <Message>
+        <MessageID>{i}</MessageID>
+        <OrderAdjustment>
+            <AmazonOrderID>{adj['order_id']}</AmazonOrderID>
+            <AdjustedItem>
+                <AmazonOrderItemCode>{adj['order_item_id']}</AmazonOrderItemCode>
+                <MerchantAdjustmentItemID>{adj.get('adjustment_id', '')}</MerchantAdjustmentItemID>
+                <AdjustmentReason>{adj.get('reason', 'NoLongerNeeded')}</AdjustmentReason>
+                <ItemPriceAdjustments>{components_xml}
+                </ItemPriceAdjustments>
+            </AdjustedItem>
+        </OrderAdjustment>
+    </Message>""")
+
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<AmazonEnvelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="amzn-envelope.xsd">
+    <Header>
+        <DocumentVersion>1.01</DocumentVersion>
+        <MerchantIdentifier>{merchant_id}</MerchantIdentifier>
+    </Header>
+    <MessageType>OrderAdjustment</MessageType>
+{''.join(messages)}
+</AmazonEnvelope>"""
+
+        return xml
+
     # =========================================================================
     # Convenience Methods
     # =========================================================================
@@ -939,6 +993,31 @@ class SPAPIFeeds:
             wait_for_completion=wait_for_completion,
         )
     
+    def submit_payment_adjustment(
+        self,
+        adjustments: List[Dict[str, Any]],
+        merchant_id: str = "",
+        wait_for_completion: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Submit a payment adjustment (refund) feed.
+
+        Args:
+            adjustments: List of adjustment info
+            merchant_id: Seller merchant ID
+            wait_for_completion: Whether to wait for completion
+
+        Returns:
+            Feed result
+        """
+        xml_content = self.build_payment_adjustment_feed_xml(adjustments, merchant_id=merchant_id)
+
+        return self.submit_feed(
+            feed_type=FeedType.POST_PAYMENT_ADJUSTMENT_DATA,
+            content=xml_content,
+            wait_for_completion=wait_for_completion,
+        )
+
     def submit_json_listings_feed(
         self,
         messages: List[Dict[str, Any]],
