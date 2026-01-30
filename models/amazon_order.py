@@ -827,8 +827,68 @@ class AmazonOrder(models.Model):
         if self.fulfillment_channel == 'AFN':
             raise UserError(_("FBA orders are shipped by Amazon."))
         
-        # TODO: Implement SP-API shipment confirmation
-        raise NotImplementedError("Shipment confirmation not yet implemented")
+        # Check if sale order exists
+        if not self.sale_order_id:
+            raise UserError(_("No linked sale order found for shipping details."))
+
+        # Find pickings that are done and have tracking info
+        pickings = self.sale_order_id.picking_ids.filtered(
+            lambda p: p.state == 'done' and p.carrier_tracking_ref
+        )
+
+        if not pickings:
+            raise UserError(_("No shipped pickings with tracking number found."))
+
+        # For this implementation, we'll take the most recent shipping info
+        picking = pickings[-1]
+
+        tracking_number = picking.carrier_tracking_ref
+        carrier = picking.carrier_id
+
+        # Determine carrier code
+        carrier_name = carrier.name if carrier else 'Other'
+
+        # Collect items from the picking
+        items_payload = []
+        for move in picking.move_ids:
+            if move.state == 'done' and move.sale_line_id and move.sale_line_id.amazon_order_line_id:
+                # Use 'quantity' (v17+) or 'product_uom_qty'
+                qty = getattr(move, 'quantity', move.product_uom_qty)
+
+                items_payload.append({
+                    'orderItemId': move.sale_line_id.amazon_order_line_id.order_item_id,
+                    'quantity': int(qty)
+                })
+
+        if not items_payload:
+            _logger.warning("Could not map picking items to Amazon items for order %s. Confirming without item details.", self.amazon_order_id)
+
+        self.account_id._confirm_shipment(
+            order_id=self.amazon_order_id,
+            carrier_code=carrier_name,
+            tracking_number=tracking_number,
+            items=items_payload if items_payload else None
+        )
+
+        # Recalculate items shipped from ALL done pickings to handle split shipments correctly
+        all_done_pickings = self.sale_order_id.picking_ids.filtered(lambda p: p.state == 'done')
+
+        total_shipped = 0
+        for p in all_done_pickings:
+            for move in p.move_ids:
+                if move.state == 'done' and move.sale_line_id and move.sale_line_id.amazon_order_line_id:
+                     qty = getattr(move, 'quantity', move.product_uom_qty)
+                     total_shipped += int(qty)
+
+        total_ordered = sum(self.order_line_ids.mapped('quantity_ordered'))
+
+        new_status = 'shipped' if total_shipped >= total_ordered else 'partially_shipped'
+
+        self.write({
+            'order_status': new_status,
+            'number_of_items_shipped': total_shipped,
+            'number_of_items_unshipped': max(0, total_ordered - total_shipped),
+        })
     
     # ══════════════════════════════════════════════════════════════════════════
     # IMPORT FROM SP-API
