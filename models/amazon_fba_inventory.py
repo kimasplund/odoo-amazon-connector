@@ -436,18 +436,19 @@ class AmazonFBAInventory(models.Model):
             ('amazon_sku', '=', data.get('sellerSku')),
         ], limit=1)
         
+        details = data.get('inventoryDetails', {})
         vals = {
             'amazon_sku': data.get('sellerSku'),
             'amazon_asin': data.get('asin'),
             'amazon_fnsku': data.get('fnsku'),
             'product_name': data.get('productName'),
-            'quantity_available': data.get('fulfillableQuantity', 0),
-            'quantity_reserved': data.get('reservedQuantity', {}).get('totalReservedQuantity', 0),
-            'quantity_inbound_working': data.get('inboundWorkingQuantity', 0),
-            'quantity_inbound_shipped': data.get('inboundShippedQuantity', 0),
-            'quantity_inbound_receiving': data.get('inboundReceivingQuantity', 0),
-            'quantity_unfulfillable': data.get('unfulfillableQuantity', {}).get('totalUnfulfillableQuantity', 0),
-            'quantity_researching': data.get('researchingQuantity', {}).get('totalResearchingQuantity', 0),
+            'quantity_available': details.get('fulfillableQuantity', 0),
+            'quantity_reserved': details.get('reservedQuantity', {}).get('totalReservedQuantity', 0),
+            'quantity_inbound_working': details.get('inboundWorkingQuantity', 0),
+            'quantity_inbound_shipped': details.get('inboundShippedQuantity', 0),
+            'quantity_inbound_receiving': details.get('inboundReceivingQuantity', 0),
+            'quantity_unfulfillable': details.get('unfulfillableQuantity', {}).get('totalUnfulfillableQuantity', 0),
+            'quantity_researching': details.get('researchingQuantity', {}).get('totalResearchingQuantity', 0),
             'last_sync_date': fields.Datetime.now(),
             'sync_error': False,
         }

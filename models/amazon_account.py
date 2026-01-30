@@ -910,7 +910,82 @@ class AmazonAccount(models.Model):
     def _sync_fba(self):
         """Sync FBA data (shipments, inventory)."""
         _logger.info('Syncing FBA data for account: %s', self.name)
-        # TODO: Implement via sp_api_fba service
+        self.write({'sync_status': 'syncing'})
+
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_fba import SPAPIFba
+
+        try:
+            # Determine marketplace
+            marketplace = self.default_marketplace_id or self.marketplace_ids[:1]
+            if not marketplace:
+                raise UserError(_('No marketplace configured for this account.'))
+
+            # Initialize client
+            client = OdooSPAPIClient(
+                client_id=self.lwa_client_id,
+                client_secret=self.lwa_client_secret,
+                refresh_token=self.refresh_token,
+                aws_access_key=self.aws_access_key,
+                aws_secret_key=self.aws_secret_key,
+                region=self.api_region,
+                marketplace_id=marketplace.marketplace_id,
+                sandbox=self.sandbox_mode
+            )
+
+            fba_api = SPAPIFba(client)
+
+            # 1. Sync Inventory
+            _logger.info("Fetching FBA inventory summaries for account %s...", self.name)
+            inventory_summaries = fba_api.get_inventory_summaries_all()
+
+            for summary in inventory_summaries:
+                self.env['amazon.fba.inventory']._update_or_create_from_amazon(
+                    self.id,
+                    marketplace.id,
+                    summary
+                )
+
+            # 2. Sync Shipments
+            _logger.info("Fetching FBA shipments for account %s...", self.name)
+            # Sync last 30 days by default
+            last_updated_after = datetime.now() - timedelta(days=30)
+
+            # Fetch all pages of shipments
+            next_token = None
+            while True:
+                shipments_resp = fba_api.get_shipments(
+                    last_updated_after=last_updated_after,
+                    query_type="DATE_RANGE",
+                    next_token=next_token
+                )
+
+                payload = shipments_resp.get('payload', {})
+                shipments = payload.get('ShipmentData', [])
+
+                for shipment_data in shipments:
+                    self.env['amazon.fba.shipment']._update_or_create_from_amazon(
+                        self.id,
+                        marketplace.id,
+                        shipment_data
+                    )
+
+                next_token = payload.get('NextToken')
+                if not next_token:
+                    break
+
+            self.write({
+                'last_sync_date': fields.Datetime.now(),
+                'sync_status': 'idle',
+                'last_error': False,
+            })
+
+        except Exception as e:
+            _logger.exception("Failed to sync FBA data for account %s: %s", self.name, str(e))
+            self.write({
+                'last_error': str(e),
+                'sync_status': 'error',
+            })
 
     # -------------------------------------------------------------------------
     # NAVIGATION ACTIONS
