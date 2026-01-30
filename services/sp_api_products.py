@@ -12,7 +12,7 @@ Handles:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TypedDict
 from enum import Enum
 
 from .sp_api_client import SPAPIClient, SPAPIError
@@ -64,6 +64,34 @@ class IssueLocale(str, Enum):
     ZH_CN = "zh_CN"
 
 
+# ============================================================================
+# TypedDicts
+# ============================================================================
+
+class CatalogItem(TypedDict, total=False):
+    asin: str
+    attributes: Dict[str, Any]
+    identifiers: List[Dict[str, Any]]
+    images: List[Dict[str, Any]]
+    productTypes: List[Dict[str, Any]]
+    relationships: List[Dict[str, Any]]
+    salesRanks: List[Dict[str, Any]]
+    summaries: List[Dict[str, Any]]
+    vendorDetails: List[Dict[str, Any]]
+
+
+class FeesEstimateRequest(TypedDict, total=False):
+    MarketplaceId: str
+    IsAmazonFulfilled: bool
+    PriceToEstimateFees: Dict[str, Dict[str, Any]]
+    Identifier: str
+    OptionalFulfillmentProgram: str
+
+
+# ============================================================================
+# SPAPIProducts Class
+# ============================================================================
+
 class SPAPIProducts:
     """
     Amazon Products/Catalog/Listings API Client
@@ -96,17 +124,17 @@ class SPAPIProducts:
     
     def search_catalog_items(
         self,
-        keywords: List[str] = None,
-        brand_names: List[str] = None,
-        classification_ids: List[str] = None,
-        identifiers: List[str] = None,
-        identifiers_type: str = None,
-        included_data: List[Union[str, IncludedData]] = None,
-        locale: str = None,
-        seller_id: str = None,
+        keywords: Optional[List[str]] = None,
+        brand_names: Optional[List[str]] = None,
+        classification_ids: Optional[List[str]] = None,
+        identifiers: Optional[List[str]] = None,
+        identifiers_type: Optional[str] = None,
+        included_data: Optional[List[Union[str, IncludedData]]] = None,
+        locale: Optional[str] = None,
+        seller_id: Optional[str] = None,
         page_size: int = 20,
-        page_token: str = None,
-        keywords_locale: str = None,
+        page_token: Optional[str] = None,
+        keywords_locale: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Search the Amazon catalog for items.
@@ -127,7 +155,7 @@ class SPAPIProducts:
         Returns:
             Catalog search results
         """
-        params = {
+        params: Dict[str, Any] = {
             'pageSize': min(page_size, 20),
         }
         
@@ -162,8 +190,8 @@ class SPAPIProducts:
     def get_catalog_item(
         self,
         asin: str,
-        included_data: List[Union[str, IncludedData]] = None,
-        locale: str = None,
+        included_data: Optional[List[Union[str, IncludedData]]] = None,
+        locale: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get catalog item details by ASIN.
@@ -176,7 +204,7 @@ class SPAPIProducts:
         Returns:
             Catalog item details
         """
-        params = {}
+        params: Dict[str, Any] = {}
         
         if included_data:
             data_list = [d.value if isinstance(d, IncludedData) else d for d in included_data]
@@ -192,10 +220,10 @@ class SPAPIProducts:
     
     def search_catalog_items_all(
         self,
-        keywords: List[str] = None,
-        max_pages: int = None,
-        **kwargs
-    ) -> List[Dict[str, Any]]:
+        keywords: Optional[List[str]] = None,
+        max_pages: Optional[int] = None,
+        **kwargs: Any
+    ) -> List[CatalogItem]:
         """
         Search catalog items with automatic pagination.
         
@@ -207,8 +235,8 @@ class SPAPIProducts:
         Returns:
             List of all catalog items found
         """
-        all_items = []
-        page_token = None
+        all_items: List[CatalogItem] = []
+        page_token: Optional[str] = None
         page_count = 0
         
         while True:
@@ -244,8 +272,8 @@ class SPAPIProducts:
         self,
         seller_id: str,
         sku: str,
-        included_data: List[str] = None,
-        issue_locale: Union[str, IssueLocale] = None,
+        included_data: Optional[List[str]] = None,
+        issue_locale: Union[str, IssueLocale, None] = None,
     ) -> Dict[str, Any]:
         """
         Get a listing item by SKU.
@@ -259,7 +287,7 @@ class SPAPIProducts:
         Returns:
             Listing item details
         """
-        params = {}
+        params: Dict[str, Any] = {}
         
         if included_data:
             params['includedData'] = ','.join(included_data)
@@ -284,7 +312,7 @@ class SPAPIProducts:
         product_type: str,
         attributes: Dict[str, Any],
         requirements: str = "LISTING",
-        issue_locale: Union[str, IssueLocale] = None,
+        issue_locale: Union[str, IssueLocale, None] = None,
     ) -> Dict[str, Any]:
         """
         Create or update a listing item.
@@ -300,7 +328,7 @@ class SPAPIProducts:
         Returns:
             Listing submission result
         """
-        params = {}
+        params: Dict[str, Any] = {}
         if issue_locale:
             locale = issue_locale.value if isinstance(issue_locale, IssueLocale) else issue_locale
             params['issueLocale'] = locale
@@ -327,7 +355,7 @@ class SPAPIProducts:
         sku: str,
         product_type: str,
         patches: List[Dict[str, Any]],
-        issue_locale: Union[str, IssueLocale] = None,
+        issue_locale: Union[str, IssueLocale, None] = None,
     ) -> Dict[str, Any]:
         """
         Partially update a listing item.
@@ -342,7 +370,7 @@ class SPAPIProducts:
         Returns:
             Patch result
         """
-        params = {}
+        params: Dict[str, Any] = {}
         if issue_locale:
             locale = issue_locale.value if isinstance(issue_locale, IssueLocale) else issue_locale
             params['issueLocale'] = locale
@@ -366,7 +394,7 @@ class SPAPIProducts:
         self,
         seller_id: str,
         sku: str,
-        issue_locale: Union[str, IssueLocale] = None,
+        issue_locale: Union[str, IssueLocale, None] = None,
     ) -> Dict[str, Any]:
         """
         Delete a listing item.
@@ -379,7 +407,7 @@ class SPAPIProducts:
         Returns:
             Deletion result
         """
-        params = {}
+        params: Dict[str, Any] = {}
         if issue_locale:
             locale = issue_locale.value if isinstance(issue_locale, IssueLocale) else issue_locale
             params['issueLocale'] = locale
@@ -400,10 +428,10 @@ class SPAPIProducts:
     def get_pricing(
         self,
         item_type: str = "Asin",
-        asins: List[str] = None,
-        skus: List[str] = None,
-        item_condition: Union[str, ItemCondition] = None,
-        offer_type: str = None,
+        asins: Optional[List[str]] = None,
+        skus: Optional[List[str]] = None,
+        item_condition: Union[str, ItemCondition, None] = None,
+        offer_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get pricing information for products.
@@ -418,7 +446,7 @@ class SPAPIProducts:
         Returns:
             Pricing information
         """
-        params = {
+        params: Dict[str, Any] = {
             'ItemType': item_type,
             'MarketplaceId': self.client.marketplace_id,
         }
@@ -444,9 +472,9 @@ class SPAPIProducts:
     def get_competitive_pricing(
         self,
         item_type: str = "Asin",
-        asins: List[str] = None,
-        skus: List[str] = None,
-        customer_type: str = None,
+        asins: Optional[List[str]] = None,
+        skus: Optional[List[str]] = None,
+        customer_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get competitive pricing for products.
@@ -460,7 +488,7 @@ class SPAPIProducts:
         Returns:
             Competitive pricing information
         """
-        params = {
+        params: Dict[str, Any] = {
             'ItemType': item_type,
             'MarketplaceId': self.client.marketplace_id,
         }
@@ -484,7 +512,7 @@ class SPAPIProducts:
         self,
         asin: str,
         item_condition: Union[str, ItemCondition] = ItemCondition.NEW,
-        customer_type: str = None,
+        customer_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get offers for a specific ASIN.
@@ -499,7 +527,7 @@ class SPAPIProducts:
         """
         condition = item_condition.value if isinstance(item_condition, ItemCondition) else item_condition
         
-        params = {
+        params: Dict[str, Any] = {
             'ItemCondition': condition,
         }
         
@@ -516,7 +544,7 @@ class SPAPIProducts:
         self,
         seller_sku: str,
         item_condition: Union[str, ItemCondition] = ItemCondition.NEW,
-        customer_type: str = None,
+        customer_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get offers for a specific SKU.
@@ -534,7 +562,7 @@ class SPAPIProducts:
         
         condition = item_condition.value if isinstance(item_condition, ItemCondition) else item_condition
         
-        params = {
+        params: Dict[str, Any] = {
             'ItemCondition': condition,
         }
         
@@ -610,7 +638,7 @@ class SPAPIProducts:
         currency_code: str = "EUR",
         shipping: float = 0,
         is_fba: bool = True,
-        identifier: str = None,
+        identifier: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get fee estimate for a SKU.
@@ -629,7 +657,7 @@ class SPAPIProducts:
         import urllib.parse
         encoded_sku = urllib.parse.quote(seller_sku, safe='')
         
-        data = {
+        data: Dict[str, Any] = {
             'FeesEstimateRequest': {
                 'MarketplaceId': self.client.marketplace_id,
                 'IsAmazonFulfilled': is_fba,
@@ -661,7 +689,7 @@ class SPAPIProducts:
         currency_code: str = "EUR",
         shipping: float = 0,
         is_fba: bool = True,
-        identifier: str = None,
+        identifier: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get fee estimate for an ASIN.
@@ -677,7 +705,7 @@ class SPAPIProducts:
         Returns:
             Fee estimate details
         """
-        data = {
+        data: Dict[str, Any] = {
             'FeesEstimateRequest': {
                 'MarketplaceId': self.client.marketplace_id,
                 'IsAmazonFulfilled': is_fba,
@@ -718,7 +746,7 @@ class SPAPIProducts:
         return self.client.post(
             f'/products/fees/{self.FEES_API_VERSION}/feesEstimate',
             operation='getMyFeesEstimates',
-            data=fee_requests,
+            data=fee_requests,  # type: ignore
             add_marketplace=False,
         )
     
@@ -728,10 +756,10 @@ class SPAPIProducts:
     
     def search_definitions_product_types(
         self,
-        keywords: List[str] = None,
-        item_name: str = None,
+        keywords: Optional[List[str]] = None,
+        item_name: Optional[str] = None,
         locale: str = "en_US",
-        search_locale: str = None,
+        search_locale: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Search for product type definitions.
@@ -745,7 +773,7 @@ class SPAPIProducts:
         Returns:
             Matching product types
         """
-        params = {
+        params: Dict[str, Any] = {
             'locale': locale,
         }
         
@@ -768,7 +796,7 @@ class SPAPIProducts:
         requirements: str = "LISTING",
         requirements_enforced: str = "ENFORCED",
         locale: str = "en_US",
-        seller_id: str = None,
+        seller_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get product type definition with JSON schema.
@@ -805,20 +833,20 @@ class SPAPIProducts:
     def build_listing_attributes(
         self,
         title: str,
-        description: str = None,
-        bullet_points: List[str] = None,
-        brand: str = None,
-        manufacturer: str = None,
-        price: float = None,
+        description: Optional[str] = None,
+        bullet_points: Optional[List[str]] = None,
+        brand: Optional[str] = None,
+        manufacturer: Optional[str] = None,
+        price: Optional[float] = None,
         currency_code: str = "EUR",
-        quantity: int = None,
+        quantity: Optional[int] = None,
         condition: str = "new_new",
         fulfillment_channel: str = "DEFAULT",
-        main_image_url: str = None,
-        other_image_urls: List[str] = None,
-        item_package_quantity: int = None,
-        number_of_items: int = None,
-        **extra_attributes
+        main_image_url: Optional[str] = None,
+        other_image_urls: Optional[List[str]] = None,
+        item_package_quantity: Optional[int] = None,
+        number_of_items: Optional[int] = None,
+        **extra_attributes: Any
     ) -> Dict[str, Any]:
         """
         Build listing attributes dictionary for create/update operations.
@@ -848,11 +876,11 @@ class SPAPIProducts:
         """
         marketplace_id = self.client.marketplace_id
         
-        def wrap_value(value):
+        def wrap_value(value: Any) -> List[Dict[str, Any]]:
             """Wrap value in marketplace array format."""
             return [{"value": value, "marketplace_id": marketplace_id}]
         
-        def wrap_price(amount, currency):
+        def wrap_price(amount: float, currency: str) -> List[Dict[str, Any]]:
             """Wrap price value."""
             return [{
                 "value": amount,
@@ -860,7 +888,7 @@ class SPAPIProducts:
                 "marketplace_id": marketplace_id
             }]
         
-        attributes = {}
+        attributes: Dict[str, Any] = {}
         
         # Required attributes
         if title:

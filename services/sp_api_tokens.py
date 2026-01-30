@@ -7,11 +7,22 @@ Handles:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from .sp_api_client import SPAPIClient
 
 _logger = logging.getLogger(__name__)
+
+
+class RestrictedResource(TypedDict):
+    method: str
+    path: str
+    dataElements: List[str]
+
+
+class CreateRestrictedDataTokenResponse(TypedDict):
+    restrictedDataToken: str
+    expiresIn: int
 
 
 class SPAPITokens:
@@ -36,7 +47,7 @@ class SPAPITokens:
     def create_restricted_data_token(
         self,
         restricted_resources: List[Dict[str, Any]],
-        target_application: str = None,
+        target_application: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a Restricted Data Token (RDT).
@@ -55,7 +66,7 @@ class SPAPITokens:
         Returns:
             RDT response containing restrictedDataToken and expiresIn
         """
-        data = {
+        data: Dict[str, Any] = {
             'restrictedResources': restricted_resources,
         }
 

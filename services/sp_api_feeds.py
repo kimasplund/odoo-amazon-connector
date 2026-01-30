@@ -16,7 +16,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Union, BinaryIO
+from typing import Any, Dict, List, Optional, Union, BinaryIO, TypedDict
 from enum import Enum
 
 import requests
@@ -75,6 +75,46 @@ class FeedContentType(str, Enum):
     TSV = "text/tab-separated-values"
     JSON = "application/json"
 
+
+# ============================================================================
+# TypedDicts
+# ============================================================================
+
+class FeedDocument(TypedDict, total=False):
+    feedDocumentId: str
+    url: str
+    encryptionDetails: Dict[str, Any]
+    compressionAlgorithm: str
+
+
+class Feed(TypedDict, total=False):
+    feedId: str
+    feedType: str
+    marketplaceIds: List[str]
+    createdTime: str
+    processingStatus: str
+    processingStartTime: str
+    processingEndTime: str
+    resultFeedDocumentId: str
+
+
+class GetFeedsResponse(TypedDict, total=False):
+    feeds: List[Feed]
+    nextToken: str
+
+
+class CreateFeedResponse(TypedDict):
+    feedId: str
+
+
+class CreateFeedDocumentResponse(TypedDict):
+    feedDocumentId: str
+    url: str
+
+
+# ============================================================================
+# SPAPIFeeds Class
+# ============================================================================
 
 class SPAPIFeeds:
     """
@@ -198,6 +238,7 @@ class SPAPIFeeds:
         url = feed_document['url']
         
         # Convert content to bytes
+        content_bytes: bytes
         if isinstance(content, str):
             content_bytes = content.encode('utf-8')
         elif hasattr(content, 'read'):
@@ -208,6 +249,9 @@ class SPAPIFeeds:
             content_bytes = content
         
         # Compress if requested
+        upload_content: bytes
+        content_encoding: Optional[str] = None
+
         if compress:
             buffer = io.BytesIO()
             with gzip.GzipFile(fileobj=buffer, mode='wb') as gz:
@@ -310,8 +354,8 @@ class SPAPIFeeds:
         self,
         feed_type: Union[str, FeedType],
         input_feed_document_id: str,
-        marketplace_ids: List[str] = None,
-        feed_options: Dict[str, str] = None,
+        marketplace_ids: Optional[List[str]] = None,
+        feed_options: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Create a feed submission.
@@ -327,7 +371,7 @@ class SPAPIFeeds:
         """
         ft = feed_type.value if isinstance(feed_type, FeedType) else feed_type
         
-        data = {
+        data: Dict[str, Any] = {
             'feedType': ft,
             'inputFeedDocumentId': input_feed_document_id,
             'marketplaceIds': marketplace_ids or [self.client.marketplace_id],
@@ -364,13 +408,13 @@ class SPAPIFeeds:
     
     def get_feeds(
         self,
-        feed_types: List[Union[str, FeedType]] = None,
-        marketplace_ids: List[str] = None,
+        feed_types: Optional[List[Union[str, FeedType]]] = None,
+        marketplace_ids: Optional[List[str]] = None,
         page_size: int = 10,
-        processing_statuses: List[Union[str, FeedStatus]] = None,
-        created_since: Union[datetime, str] = None,
-        created_until: Union[datetime, str] = None,
-        next_token: str = None,
+        processing_statuses: Optional[List[Union[str, FeedStatus]]] = None,
+        created_since: Union[datetime, str, None] = None,
+        created_until: Union[datetime, str, None] = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get a list of feeds.
@@ -387,7 +431,7 @@ class SPAPIFeeds:
         Returns:
             List of feeds
         """
-        def format_datetime(dt):
+        def format_datetime(dt: Union[datetime, str, None]) -> Optional[str]:
             if dt is None:
                 return None
             if isinstance(dt, datetime):
@@ -396,7 +440,7 @@ class SPAPIFeeds:
                 return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
             return dt
         
-        params = {
+        params: Dict[str, Any] = {
             'pageSize': page_size,
         }
         
@@ -411,9 +455,9 @@ class SPAPIFeeds:
             statuses = [s.value if isinstance(s, FeedStatus) else s for s in processing_statuses]
             params['processingStatuses'] = ','.join(statuses)
         if created_since:
-            params['createdSince'] = format_datetime(created_since)
+            params['createdSince'] = format_datetime(created_since) or ""
         if created_until:
-            params['createdUntil'] = format_datetime(created_until)
+            params['createdUntil'] = format_datetime(created_until) or ""
         if next_token:
             params['nextToken'] = next_token
         
@@ -450,9 +494,9 @@ class SPAPIFeeds:
     def submit_feed(
         self,
         feed_type: Union[str, FeedType],
-        content: Union[str, bytes, Dict, List],
-        marketplace_ids: List[str] = None,
-        feed_options: Dict[str, str] = None,
+        content: Union[str, bytes, Dict[str, Any], List[Any]],
+        marketplace_ids: Optional[List[str]] = None,
+        feed_options: Optional[Dict[str, str]] = None,
         wait_for_completion: bool = False,
         poll_interval: int = 30,
         max_wait: int = 3600,
@@ -476,13 +520,18 @@ class SPAPIFeeds:
         
         # Determine content type
         content_type = self.FEED_CONTENT_TYPES.get(
-            FeedType(ft) if isinstance(ft, str) else ft,
+            FeedType(ft) if isinstance(ft, str) else ft,  # type: ignore
             FeedContentType.JSON
         )
         
         # Serialize content if needed
+        content_str: Union[str, bytes]
         if isinstance(content, (dict, list)):
-            content = json.dumps(content)
+            content_str = json.dumps(content)
+        elif isinstance(content, bytes):
+            content_str = content
+        else:
+            content_str = content
         
         # Step 1: Create feed document
         _logger.info("Creating feed document for %s", ft)
@@ -491,7 +540,7 @@ class SPAPIFeeds:
         
         # Step 2: Upload content
         _logger.info("Uploading feed content to document %s", feed_document_id)
-        self.upload_feed_document(doc, content)
+        self.upload_feed_document(doc, content_str)
         
         # Step 3: Create feed
         _logger.info("Submitting feed %s", ft)
@@ -568,7 +617,7 @@ class SPAPIFeeds:
         self,
         feed_id: str,
         decode: bool = True,
-    ) -> Union[bytes, str, Dict]:
+    ) -> Union[bytes, str, Dict[str, Any], List[Any]]:
         """
         Get the result/report for a completed feed.
         
@@ -591,7 +640,7 @@ class SPAPIFeeds:
         result_document_id = feed.get('resultFeedDocumentId')
         if not result_document_id:
             _logger.warning("Feed %s has no result document", feed_id)
-            return None
+            return {}
         
         # Download result
         content = self.download_feed_document(result_document_id)
@@ -619,7 +668,7 @@ class SPAPIFeeds:
     def build_json_listings_feed(
         self,
         messages: List[Dict[str, Any]],
-        header: Dict[str, Any] = None,
+        header: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Build a JSON listings feed.
@@ -676,8 +725,8 @@ class SPAPIFeeds:
     def build_price_and_quantity_message(
         self,
         sku: str,
-        price: float = None,
-        quantity: int = None,
+        price: Optional[float] = None,
+        quantity: Optional[int] = None,
         currency_code: str = "EUR",
     ) -> Dict[str, Any]:
         """
@@ -692,12 +741,12 @@ class SPAPIFeeds:
         Returns:
             Price/quantity message
         """
-        message = {
+        message: Dict[str, Any] = {
             'sku': sku,
             'operationType': 'PARTIAL_UPDATE',
         }
         
-        attributes = {}
+        attributes: Dict[str, Any] = {}
         
         if price is not None:
             attributes['purchasable_offer'] = [{
