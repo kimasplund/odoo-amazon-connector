@@ -895,7 +895,7 @@ class AmazonOrder(models.Model):
     # ══════════════════════════════════════════════════════════════════════════
     
     @api.model
-    def create_from_spapi(self, account, order_data, marketplace_cache=None, currency_cache=None):
+    def create_from_spapi(self, account, order_data, marketplace_cache=None, currency_cache=None, order_cache=None):
         """Create or update Amazon order from SP-API response.
         
         Args:
@@ -903,16 +903,21 @@ class AmazonOrder(models.Model):
             order_data: dict from SP-API Orders API
             marketplace_cache: dict to cache marketplace records
             currency_cache: dict to cache currency records
+            order_cache: dict to cache order records
             
         Returns:
             amazon.order record
         """
         amazon_order_id = order_data.get('AmazonOrderId')
         
-        existing = self.search([
-            ('amazon_order_id', '=', amazon_order_id),
-            ('account_id', '=', account.id),
-        ], limit=1)
+        existing = None
+        if order_cache is not None:
+            existing = order_cache.get(amazon_order_id)
+        else:
+            existing = self.search([
+                ('amazon_order_id', '=', amazon_order_id),
+                ('account_id', '=', account.id),
+            ], limit=1)
         
         vals = self._prepare_vals_from_spapi(
             account, order_data,

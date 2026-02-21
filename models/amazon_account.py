@@ -865,10 +865,18 @@ class AmazonAccount(models.Model):
             AmazonOrder = self.env['amazon.order']
             AmazonOrderLine = self.env['amazon.order.line']
 
+            # Batch process to minimize queries
+            amazon_order_ids = [o.get('AmazonOrderId') for o in orders if o.get('AmazonOrderId')]
+            existing_orders = AmazonOrder.search([
+                ('amazon_order_id', 'in', amazon_order_ids),
+                ('account_id', '=', self.id),
+            ])
+            order_cache = {order.amazon_order_id: order for order in existing_orders}
+
             for order_data in orders:
                 try:
                     # Create/Update Order
-                    order = AmazonOrder.create_from_spapi(self, order_data)
+                    order = AmazonOrder.create_from_spapi(self, order_data, order_cache=order_cache)
 
                     # Fetch items
                     items = orders_api.get_order_items_all(order.amazon_order_id)
