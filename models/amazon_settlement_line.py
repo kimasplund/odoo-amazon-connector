@@ -370,23 +370,32 @@ class AmazonSettlementLine(models.Model):
         Returns:
             Created amazon.settlement.line records
         """
-        lines = self.env['amazon.settlement.line']
-        
+        lines_vals = []
         for row in rows:
             try:
                 line_data = self._prepare_line_data(settlement, row)
                 if line_data:
-                    line = self.create(line_data)
-                    lines |= line
-                    
-                    # Create fee record if this is a fee
-                    if line.is_fee:
-                        self.env['amazon.fee'].create_from_settlement_line(line)
-                        
+                    lines_vals.append(line_data)
             except Exception as e:
-                _logger.exception('Failed to import settlement line: %s', e)
+                _logger.exception('Failed to prepare settlement line data: %s', e)
                 continue
-        
+
+        lines = self.create(lines_vals)
+
+        # Create fee records for fee lines
+        # Optimization: use batch creation if possible, otherwise loop
+        fee_lines = lines.filtered('is_fee')
+        if fee_lines:
+            # Check if batch method exists (future-proofing)
+            if hasattr(self.env['amazon.fee'], 'create_from_settlement_lines'):
+                self.env['amazon.fee'].create_from_settlement_lines(fee_lines)
+            else:
+                for line in fee_lines:
+                    try:
+                        self.env['amazon.fee'].create_from_settlement_line(line)
+                    except Exception as e:
+                        _logger.exception('Failed to create fee for line %s: %s', line.id, e)
+
         return lines
     
     @api.model

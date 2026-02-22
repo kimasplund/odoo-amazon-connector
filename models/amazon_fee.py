@@ -326,6 +326,54 @@ class AmazonFee(models.Model):
         line.fee_id = fee.id
         
         return fee
+
+    @api.model
+    def create_from_settlement_lines(self, lines):
+        """
+        Batch create fee records from settlement lines.
+
+        Args:
+            lines: amazon.settlement.line recordset
+
+        Returns:
+            amazon.fee recordset
+        """
+        lines = lines.filtered('is_fee')
+        if not lines:
+            return self.env['amazon.fee']
+
+        fees_vals = []
+        for line in lines:
+            fee_type = self._map_amount_type_to_fee_type(line.amount_type)
+
+            fees_vals.append({
+                'name': line.name or line.amount_description or dict(self.FEE_TYPES).get(fee_type, 'Fee'),
+                'fee_type': fee_type,
+                'account_id': line.settlement_id.account_id.id,
+                'marketplace_id': line.settlement_id.marketplace_id.id,
+                'amazon_order_id': line.amazon_order_id.id if line.amazon_order_id else False,
+                'amazon_order_line_id': line.amazon_order_line_id.id if line.amazon_order_line_id else False,
+                'settlement_line_id': line.id,
+                'product_id': line.product_id.id if line.product_id else False,
+                'sku': line.sku,
+                'asin': line.asin,
+                'quantity': line.quantity or 1,
+                'amount': line.amount,
+                'currency_id': line.currency_id.id,
+                'date': (line.posted_date.date() if line.posted_date
+                        else line.settlement_id.deposit_date
+                        or fields.Date.today()),
+                'posted_datetime': line.posted_date,
+                'amazon_reference': line.merchant_adjustment_id,
+            })
+
+        fees = self.create(fees_vals)
+
+        # Link back to settlement lines
+        for line, fee in zip(lines, fees):
+            line.fee_id = fee.id
+
+        return fees
     
     @api.model
     def _map_amount_type_to_fee_type(self, amount_type):
