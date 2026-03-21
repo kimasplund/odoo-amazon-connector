@@ -951,12 +951,88 @@ class AmazonProductListing(models.Model):
 
     def action_update_price(self):
         """Push price update to Amazon."""
+        # 1. Validation and Grouping
+        records_by_account = {}
         for record in self:
+            if record.state == 'draft':
+                raise UserError(
+                    _('Cannot push draft listings. Set to pending first: %s') % record.display_name
+                )
             if not record.list_price:
-                raise UserError(_('List price is required.'))
-            _logger.info('Updating price for %s to %s', 
-                        record.display_name, record.list_price)
-            # TODO: Implement via sp_api_feeds service
+                raise UserError(_('List price is required for %s.') % record.display_name)
+
+            key = (record.account_id, record.marketplace_id)
+            if key not in records_by_account:
+                records_by_account[key] = self.env['amazon.product.listing']
+            records_by_account[key] |= record
+
+        # 2. Process per Account/Marketplace
+        for (account, marketplace), records in records_by_account.items():
+            _logger.info('Pushing %d price updates to Amazon for account %s', len(records), account.name)
+
+            # Create Sync Log
+            log = self.env['amazon.sync.log'].create_log(
+                account_id=account.id,
+                operation='product_export',
+                marketplace_id=marketplace.id,
+                model_name=self._name,
+                record_ids=','.join(map(str, records.ids)),
+                record_count=len(records),
+            )
+
+            try:
+                # Initialize Client and Service
+                client = OdooSPAPIClient.from_credential_record(account)
+                feeds_api = SPAPIFeeds(client)
+
+                # Build Items
+                items = []
+                for record in records:
+                    item = {
+                        'sku': record.sku,
+                        'price': record.list_price,
+                    }
+                    if record.is_on_sale and record.sale_price:
+                        item['sale_price'] = record.sale_price
+                        if record.sale_price_start:
+                            item['sale_start'] = record.sale_price_start.strftime('%Y-%m-%dT%H:%M:%S')
+                        if record.sale_price_end:
+                            item['sale_end'] = record.sale_price_end.strftime('%Y-%m-%dT%H:%M:%S')
+                    items.append(item)
+
+                # Build XML and Submit Feed
+                currency_code = marketplace.currency_id.name or 'EUR'
+                xml_content = feeds_api.build_price_feed_xml(
+                    items=items,
+                    merchant_id=account.seller_id,
+                    currency_code=currency_code
+                )
+
+                result = feeds_api.submit_feed(
+                    feed_type='POST_PRODUCT_PRICING_DATA',
+                    content=xml_content,
+                    wait_for_completion=False
+                )
+
+                feed_id = result.get('feedId')
+                log.complete(
+                    status='success',
+                    message=_('Price feed submitted successfully. Feed ID: %s') % feed_id,
+                    response_data=json.dumps(result, default=str)
+                )
+
+                # Update records
+                records.write({
+                    'last_price_sync': fields.Datetime.now(),
+                })
+
+            except SPAPIError as e:
+                log.log_error(message=str(e))
+                _logger.error("Failed to push price updates to Amazon: %s", str(e))
+            except Exception as e:
+                log.log_error(message=str(e), traceback=traceback.format_exc())
+                _logger.error("Unexpected error pushing price updates to Amazon: %s", str(e), exc_info=True)
+                raise UserError(_('An error occurred while pushing price updates to Amazon: %s') % str(e))
 
     def action_sync_inventory(self):
         """Sync inventory levels from Amazon."""
