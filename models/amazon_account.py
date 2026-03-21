@@ -873,8 +873,36 @@ class AmazonAccount(models.Model):
                     # Fetch items
                     items = orders_api.get_order_items_all(order.amazon_order_id)
 
+                    # Pre-fetch products and listings to avoid N+1 queries
+                    seller_skus = [item.get('SellerSKU') for item in items if item.get('SellerSKU')]
+                    product_cache = {}
+                    listing_cache = {}
+
+                    if seller_skus:
+                        # Initialize cache with False to prevent fallback queries for missing SKUs
+                        for sku in seller_skus:
+                            product_cache[sku] = False
+                            listing_cache[sku] = False
+
+                        products = self.env['product.product'].search([
+                            ('default_code', 'in', seller_skus)
+                        ])
+                        for p in products:
+                            product_cache[p.default_code] = p
+
+                        listings = self.env['amazon.product.listing'].search([
+                            ('seller_sku', 'in', seller_skus),
+                            ('account_id', '=', order.account_id.id),
+                        ])
+                        for l in listings:
+                            listing_cache[l.seller_sku] = l
+
                     for item_data in items:
-                        AmazonOrderLine.create_from_spapi(order, item_data)
+                        AmazonOrderLine.create_from_spapi(
+                            order, item_data,
+                            product_cache=product_cache,
+                            listing_cache=listing_cache
+                        )
 
                     processed_count += 1
 

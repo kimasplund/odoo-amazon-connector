@@ -557,12 +557,14 @@ class AmazonOrderLine(models.Model):
     # ══════════════════════════════════════════════════════════════════════════
     
     @api.model
-    def create_from_spapi(self, order, item_data):
+    def create_from_spapi(self, order, item_data, product_cache=None, listing_cache=None):
         """Create order line from SP-API OrderItems response.
         
         Args:
             order: amazon.order record
             item_data: dict from SP-API OrderItems API
+            product_cache: dict caching product.product records by SKU
+            listing_cache: dict caching amazon.product.listing records by SKU
             
         Returns:
             amazon.order.line record
@@ -573,7 +575,11 @@ class AmazonOrderLine(models.Model):
             ('order_item_id', '=', order_item_id)
         ], limit=1)
         
-        vals = self._prepare_vals_from_spapi(order, item_data)
+        vals = self._prepare_vals_from_spapi(
+            order, item_data,
+            product_cache=product_cache,
+            listing_cache=listing_cache
+        )
         
         if existing:
             existing.write(vals)
@@ -582,7 +588,7 @@ class AmazonOrderLine(models.Model):
             return self.create(vals)
     
     @api.model
-    def _prepare_vals_from_spapi(self, order, data):
+    def _prepare_vals_from_spapi(self, order, data, product_cache=None, listing_cache=None):
         """Transform SP-API order item data to model values."""
         
         def get_money(field_name, default=0):
@@ -596,13 +602,24 @@ class AmazonOrderLine(models.Model):
         listing = False
         
         if seller_sku:
-            product = self.env['product.product'].search([
-                ('default_code', '=', seller_sku)
-            ], limit=1)
-            listing = self.env['amazon.product.listing'].search([
-                ('seller_sku', '=', seller_sku),
-                ('account_id', '=', order.account_id.id),
-            ], limit=1)
+            if product_cache is not None and seller_sku in product_cache:
+                product = product_cache[seller_sku]
+            else:
+                product = self.env['product.product'].search([
+                    ('default_code', '=', seller_sku)
+                ], limit=1)
+                if product_cache is not None:
+                    product_cache[seller_sku] = product
+
+            if listing_cache is not None and seller_sku in listing_cache:
+                listing = listing_cache[seller_sku]
+            else:
+                listing = self.env['amazon.product.listing'].search([
+                    ('seller_sku', '=', seller_sku),
+                    ('account_id', '=', order.account_id.id),
+                ], limit=1)
+                if listing_cache is not None:
+                    listing_cache[seller_sku] = listing
         
         # Parse promotion IDs
         promotion_ids = data.get('PromotionIds', [])
