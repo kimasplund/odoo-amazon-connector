@@ -920,12 +920,142 @@ class AmazonAccount(models.Model):
     def _sync_inventory(self):
         """Sync inventory levels."""
         _logger.info('Syncing inventory for account: %s', self.name)
-        # TODO: Implement via sp_api_fba service
+
+        # Create sync log
+        log = self.env['amazon.sync.log'].create_log(self.id, 'inventory_sync')
+
+        try:
+            from ..services.sp_api_client import OdooSPAPIClient
+            from ..services.sp_api_fba import SPAPIFba
+
+            # Find FBA listings for this account
+            listings = self.env['amazon.product.listing'].search([
+                ('account_id', '=', self.id),
+                ('fulfillment_channel', '=', 'FBA')
+            ])
+
+            if not listings:
+                log.complete(status='success', message="No FBA listings to sync.")
+                return
+
+            # Initialize client
+            client = OdooSPAPIClient.from_credential_record(self)
+
+            with client:
+                fba_api = SPAPIFba(client)
+
+                # Fetch inventory summaries in batches of 50 SKUs
+                skus = listings.mapped('sku')
+                processed_count = 0
+                error_count = 0
+
+                for i in range(0, len(skus), 50):
+                    batch_skus = skus[i:i+50]
+                    try:
+                        response = fba_api.get_inventory_summaries(
+                            granularity_type='Marketplace',
+                            granularity_id=self.default_marketplace_id.marketplace_id,
+                            seller_skus=batch_skus,
+                            details=True,
+                            marketplace_ids=[m.marketplace_id for m in self.marketplace_ids]
+                        )
+
+                        payload = response.get('payload', response)
+                        summaries = payload.get('inventorySummaries', [])
+
+                        for summary in summaries:
+                            sku = summary.get('sellerSku')
+                            details = summary.get('inventoryDetails', {})
+
+                            listing = listings.filtered(lambda l: l.sku == sku)
+                            if listing:
+                                fulfillable = details.get('fulfillableQuantity', 0)
+                                inbound = (
+                                    details.get('inboundWorkingQuantity', 0) +
+                                    details.get('inboundShippedQuantity', 0) +
+                                    details.get('inboundReceivingQuantity', 0)
+                                )
+                                reserved = details.get('reservedQuantity', {}).get('totalReservedQuantity', 0)
+                                unfulfillable = details.get('unfulfillableQuantity', {}).get('totalUnfulfillableQuantity', 0)
+
+                                listing.write({
+                                    'quantity_available': fulfillable,
+                                    'quantity_inbound': inbound,
+                                    'quantity_reserved': reserved,
+                                    'quantity_unfulfillable': unfulfillable,
+                                    'last_inventory_sync': fields.Datetime.now()
+                                })
+                                processed_count += 1
+
+                    except Exception as e:
+                        error_count += 1
+                        _logger.error("Failed to sync inventory batch for account %s: %s", self.name, str(e))
+
+                self.write({
+                    'last_sync_date': fields.Datetime.now(),
+                    'last_error': False,
+                    'sync_status': 'idle',
+                })
+
+                status = 'success'
+                if error_count > 0:
+                    status = 'warning' if processed_count > 0 else 'error'
+
+                log.complete(
+                    status=status,
+                    message=f"Synced inventory for {processed_count} FBA listings. Errors: {error_count}",
+                    record_count=processed_count,
+                    error_count=error_count
+                )
+
+        except Exception as e:
+            msg = f"Inventory sync failed: {str(e)}"
+            _logger.exception(msg)
+            self.write({
+                'sync_status': 'error',
+                'last_error': msg
+            })
+            log.log_error(msg)
 
     def _sync_fba(self):
         """Sync FBA data (shipments, inventory)."""
         _logger.info('Syncing FBA data for account: %s', self.name)
-        # TODO: Implement via sp_api_fba service
+
+        try:
+            # Sync FBA inventory via amazon.inventory.sync
+            sync = self.env['amazon.inventory.sync'].create({
+                'account_id': self.id,
+                'sync_type': 'fba_import',
+                'sync_mode': 'full',
+            })
+            sync.action_start()
+
+            # Sync active FBA shipments
+            shipments = self.env['amazon.fba.shipment'].search([
+                ('account_id', '=', self.id),
+                ('state', 'in', ['working', 'ready_to_ship', 'shipped', 'in_transit', 'delivered', 'checked_in', 'receiving']),
+                ('amazon_shipment_id', '!=', False)
+            ])
+
+            for shipment in shipments:
+                try:
+                    shipment._sync_from_amazon()
+                except Exception as e:
+                    _logger.warning("Failed to sync shipment %s: %s", shipment.name, str(e))
+
+            self.write({
+                'last_sync_date': fields.Datetime.now(),
+                'last_error': False,
+                'sync_status': 'idle',
+            })
+
+        except Exception as e:
+            msg = f"FBA sync failed: {str(e)}"
+            _logger.exception(msg)
+            self.write({
+                'sync_status': 'error',
+                'last_error': msg
+            })
 
     # -------------------------------------------------------------------------
     # NAVIGATION ACTIONS
