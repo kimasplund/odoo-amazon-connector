@@ -960,10 +960,103 @@ class AmazonProductListing(models.Model):
 
     def action_sync_inventory(self):
         """Sync inventory levels from Amazon."""
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_fba import SPAPIFba
+
+        # Group by account and marketplace to reuse client and ensure correct marketplace context
+        grouped_records = {}
         for record in self:
-            _logger.info('Syncing inventory for %s', record.display_name)
-            # TODO: Implement via sp_api_fba service
-            record.last_inventory_sync = fields.Datetime.now()
+            if not record.is_fba:
+                continue
+            key = (record.account_id, record.marketplace_id)
+            if key not in grouped_records:
+                grouped_records[key] = self.env['amazon.product.listing']
+            grouped_records[key] |= record
+
+        for (account, marketplace), records in grouped_records.items():
+            if not account or not marketplace:
+                continue
+
+            _logger.info('Syncing inventory for account %s on %s (%d records)',
+                        account.name, marketplace.name, len(records))
+
+            try:
+                # Initialize client for this account and marketplace
+                client = OdooSPAPIClient(
+                    client_id=account.lwa_client_id,
+                    client_secret=account.lwa_client_secret,
+                    refresh_token=account.refresh_token,
+                    aws_access_key=account.aws_access_key,
+                    aws_secret_key=account.aws_secret_key,
+                    region=account.api_region,
+                    marketplace_id=marketplace.marketplace_id,
+                    sandbox=account.sandbox_mode
+                )
+
+                with client:
+                    fba_api = SPAPIFba(client)
+
+                    # Process in batches of 50 (Amazon limit)
+                    batch_size = 50
+                    for i in range(0, len(records), batch_size):
+                        batch = records[i:i + batch_size]
+                        skus = batch.mapped('sku')
+
+                        try:
+                            response = fba_api.get_inventory_summaries(
+                                granularity_type='Marketplace',
+                                granularity_id=marketplace.marketplace_id,
+                                seller_skus=skus,
+                                details=True
+                            )
+
+                            payload = response.get('payload', response)
+                            summaries = payload.get('inventorySummaries', [])
+
+                            # Create a map of SKU -> Inventory Data
+                            summary_map = {item.get('sellerSku'): item for item in summaries if item.get('sellerSku')}
+
+                            for record in batch:
+                                item = summary_map.get(record.sku)
+                                if item:
+                                    details = item.get('inventoryDetails', {})
+
+                                    avail = details.get('fulfillableQuantity', 0)
+                                    inbound = (details.get('inboundWorkingQuantity', 0) +
+                                               details.get('inboundShippedQuantity', 0) +
+                                               details.get('inboundReceivingQuantity', 0))
+
+                                    reserved_dict = details.get('reservedQuantity', {})
+                                    reserved = reserved_dict.get('totalReservedQuantity', 0) if isinstance(reserved_dict, dict) else 0
+
+                                    unfulfillable_dict = details.get('unfulfillableQuantity', {})
+                                    unfulfillable = unfulfillable_dict.get('totalUnfulfillableQuantity', 0) if isinstance(unfulfillable_dict, dict) else 0
+
+                                    record.write({
+                                        'quantity_available': avail,
+                                        'quantity_inbound': inbound,
+                                        'quantity_reserved': reserved,
+                                        'quantity_unfulfillable': unfulfillable,
+                                        'last_inventory_sync': fields.Datetime.now()
+                                    })
+
+                                    # Update or create the historical inventory tracking record
+                                    self.env['amazon.fba.inventory']._update_or_create_from_amazon(
+                                        account.id,
+                                        marketplace.id,
+                                        item,
+                                    )
+                                else:
+                                    # If not in response, update sync date
+                                    record.write({
+                                        'last_inventory_sync': fields.Datetime.now()
+                                    })
+
+                        except Exception as e:
+                            _logger.error("Failed to get inventory for batch %s: %s", skus, str(e))
+
+            except Exception as e:
+                _logger.error("Failed to sync inventory for account %s: %s", account.name, str(e))
 
     def action_open_on_amazon(self):
         """Open the product page on Amazon."""
