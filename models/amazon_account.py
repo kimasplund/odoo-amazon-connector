@@ -920,12 +920,217 @@ class AmazonAccount(models.Model):
     def _sync_inventory(self):
         """Sync inventory levels."""
         _logger.info('Syncing inventory for account: %s', self.name)
-        # TODO: Implement via sp_api_fba service
+
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_fba import SPAPIFba
+
+        self.ensure_one()
+        client = OdooSPAPIClient.from_credential_record(self)
+        fba_api = SPAPIFba(client)
+
+        try:
+            # For performance, grab all summaries at once, grouping by 50 or fetching all pages
+            all_summaries = fba_api.get_inventory_summaries_all(details=True)
+
+            FBAInventory = self.env['amazon.fba.inventory']
+
+            # Map default marketplace
+            marketplace_id = self.default_marketplace_id.id if self.default_marketplace_id else self.marketplace_ids[0].id
+
+            # Use batch searching for existing inventory records mapping to amazon_sku to eliminate N+1 query problem
+            skus = [item.get('sellerSku') for item in all_summaries if item.get('sellerSku')]
+
+            # Chunking to avoid overly large IN clauses
+            def chunk_list(lst, n):
+                for i in range(0, len(lst), n):
+                    yield lst[i:i + n]
+
+            existing_map = {}
+            for chunked_skus in chunk_list(skus, 1000):
+                existing_records = FBAInventory.search([
+                    ('account_id', '=', self.id),
+                    ('marketplace_id', '=', marketplace_id),
+                    ('amazon_sku', 'in', chunked_skus),
+                ])
+                existing_map.update({r.amazon_sku: r for r in existing_records})
+
+            processed = 0
+            for item in all_summaries:
+                seller_sku = item.get('sellerSku')
+                if not seller_sku:
+                    continue
+
+                existing = existing_map.get(seller_sku)
+
+                # We can optimize the batch update using existing_record
+                record = FBAInventory._update_or_create_from_amazon(
+                    self.id,
+                    marketplace_id,
+                    item,
+                    existing_record=existing or False
+                )
+
+                # Update map to handle duplicate SKUs in the same batch
+                if seller_sku and not existing:
+                    existing_map[seller_sku] = record
+
+                processed += 1
+
+                if processed % 50 == 0:
+                    self.env.cr.commit()
+
+            # Additionally, invoke `action_sync_inventory` on all associated listings for this account
+            listings = self.env['amazon.product.listing'].search([('account_id', '=', self.id)])
+            for listing in listings:
+                try:
+                    listing.action_sync_inventory()
+                except Exception as e:
+                    _logger.error("Failed to sync listing inventory %s: %s", listing.seller_sku, e)
+
+            _logger.info('Successfully synced inventory for %d FBA listings', processed)
+
+        except Exception as e:
+            _logger.error("Failed to sync inventory for account %s: %s", self.name, str(e))
+            self.write({
+                'last_error': str(e),
+                'sync_status': 'error',
+            })
+        finally:
+            client.close()
 
     def _sync_fba(self):
         """Sync FBA data (shipments, inventory)."""
         _logger.info('Syncing FBA data for account: %s', self.name)
-        # TODO: Implement via sp_api_fba service
+
+        from ..services.sp_api_client import OdooSPAPIClient
+        from ..services.sp_api_fba import SPAPIFba
+
+        self.ensure_one()
+
+        # We start by initializing the client
+        client = OdooSPAPIClient.from_credential_record(self)
+        fba_api = SPAPIFba(client)
+
+        # Fetch shipments from the last 30 days
+        last_updated_after = fields.Datetime.now() - timedelta(days=30)
+
+        try:
+            # We want to use manual pagination via NextToken to get the full history
+            next_token = None
+            all_shipment_data = []
+            while True:
+                # Correctly handle query type based on token presence
+                if next_token:
+                    response = fba_api.get_shipments(
+                        query_type='NEXT_TOKEN',
+                        next_token=next_token
+                    )
+                else:
+                    response = fba_api.get_shipments(
+                        last_updated_after=last_updated_after,
+                        query_type='DATE_RANGE'
+                    )
+
+                payload = response.get('payload', response)
+                shipments_data = payload.get('ShipmentData', [])
+                all_shipment_data.extend(shipments_data)
+
+                next_token = payload.get('NextToken')
+                if not next_token:
+                    break
+
+            FBAShipment = self.env['amazon.fba.shipment']
+            FBAItem = self.env['amazon.fba.shipment.item']
+
+            # Map default marketplace
+            marketplace_id = self.default_marketplace_id.id if self.default_marketplace_id else self.marketplace_ids[0].id
+
+            processed = 0
+
+            for shipment_data in all_shipment_data:
+                # Update or create shipment
+                shipment = FBAShipment._update_or_create_from_amazon(
+                    self.id,
+                    marketplace_id,
+                    shipment_data
+                )
+
+                if not shipment:
+                    continue
+
+                # Fetch items for this shipment
+                item_next_token = None
+                all_item_data = []
+                while True:
+                    if item_next_token:
+                        item_response = fba_api.get_shipment_items(
+                            query_type='NEXT_TOKEN',
+                            next_token=item_next_token
+                        )
+                    else:
+                        item_response = fba_api.get_shipment_items(
+                            shipment_id=shipment.amazon_shipment_id,
+                            query_type='SHIPMENT'
+                        )
+
+                    item_payload = item_response.get('payload', item_response)
+                    items_data = item_payload.get('ItemData', [])
+                    all_item_data.extend(items_data)
+
+                    item_next_token = item_payload.get('NextToken')
+                    if not item_next_token:
+                        break
+
+                # Update or create items
+                for item_data in all_item_data:
+                    seller_sku = item_data.get('SellerSKU')
+                    if not seller_sku:
+                        continue
+
+                    # Find existing item
+                    existing_item = FBAItem.search([
+                        ('shipment_id', '=', shipment.id),
+                        ('amazon_sku', '=', seller_sku)
+                    ], limit=1)
+
+                    # Prepare item values
+                    qty_shipped = item_data.get('QuantityShipped', 0)
+                    qty_received = item_data.get('QuantityReceived', 0)
+                    qty_in_case = item_data.get('QuantityInCase', 0)
+                    fnsku = item_data.get('FulfillmentNetworkSKU', '')
+
+                    item_vals = {
+                        'quantity': qty_shipped,
+                        'received_quantity': qty_received,
+                        'quantity_in_case': qty_in_case,
+                        'amazon_fnsku': fnsku,
+                    }
+
+                    if existing_item:
+                        existing_item.write(item_vals)
+                    else:
+                        # Find product for SKU
+                        product = self.env['amazon.fba.inventory']._find_product_by_sku(seller_sku)
+                        if product:
+                            item_vals.update({
+                                'shipment_id': shipment.id,
+                                'product_id': product.id,
+                                'amazon_sku': seller_sku,
+                            })
+                            FBAItem.create(item_vals)
+
+                processed += 1
+
+            _logger.info('Successfully synced %d FBA shipments', processed)
+
+        except Exception as e:
+            _logger.error("Failed to sync FBA shipments for account %s: %s", self.name, str(e))
+            self.write({
+                'last_error': str(e),
+                'sync_status': 'error',
+            })
+        finally:
+            client.close()
 
     # -------------------------------------------------------------------------
     # NAVIGATION ACTIONS
