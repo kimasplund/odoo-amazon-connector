@@ -530,12 +530,50 @@ class AmazonOrderSyncWizard(models.TransientModel):
         
         sale_order = SaleOrder.create(so_vals)
         
+        # Pre-fetch and create placeholder products in batch to avoid N+1 queries
+        lines_missing_products = amazon_order.line_ids.filtered(lambda l: not l.product_id and l.seller_sku)
+        sku_to_product = {}
+
+        if lines_missing_products:
+            Product = self.env['product.product']
+            skus = list(set(lines_missing_products.mapped('seller_sku')))
+
+            # Batch search existing
+            existing_products = Product.search([('default_code', 'in', skus)])
+            for p in existing_products:
+                if p.default_code:
+                    sku_to_product[p.default_code] = p
+
+            # Batch create missing
+            create_vals = []
+            seen_skus = set(sku_to_product.keys())
+
+            for line in lines_missing_products:
+                if line.seller_sku not in seen_skus:
+                    create_vals.append({
+                        'name': line.title or f'Amazon Product {line.seller_sku}',
+                        'default_code': line.seller_sku,
+                        'type': 'consu',
+                        'list_price': line.item_price,
+                    })
+                    seen_skus.add(line.seller_sku)
+
+            if create_vals:
+                new_products = Product.create(create_vals)
+                for p in new_products:
+                    if p.default_code:
+                        sku_to_product[p.default_code] = p
+
         # Create sale order lines
         for line in amazon_order.line_ids:
             product = line.product_id
             if not product:
-                # Create or use placeholder product
-                product = self._get_placeholder_product(line)
+                # Use pre-fetched/created placeholder product
+                if line.seller_sku and line.seller_sku in sku_to_product:
+                    product = sku_to_product[line.seller_sku]
+                else:
+                    # Fallback for edge cases (e.g., missing seller_sku)
+                    product = self._get_placeholder_product(line)
             
             self.env['sale.order.line'].create({
                 'order_id': sale_order.id,
