@@ -492,32 +492,57 @@ class AmazonFBAShipmentWizardLine(models.TransientModel):
     
     @api.depends('product_id', 'wizard_id.account_id', 'wizard_id.marketplace_id')
     def _compute_amazon_data(self):
+        # Reset all lines first
         for line in self:
             line.seller_sku = ''
             line.asin = ''
             line.fnsku = ''
             
-            if line.product_id and line.wizard_id.account_id:
-                listing = self.env['amazon.product.listing'].search([
-                    ('product_tmpl_id', '=', line.product_id.id),
-                    ('account_id', '=', line.wizard_id.account_id.id),
-                    ('marketplace_id', '=', line.wizard_id.marketplace_id.id),
-                    ('fulfillment_channel', '=', 'AFN'),
-                ], limit=1)
+        # Filter valid lines
+        valid_lines = self.filtered(lambda l: l.product_id and l.wizard_id.account_id)
+        if not valid_lines:
+            return
+
+        # Collect distinct criteria
+        product_ids = valid_lines.mapped('product_id').ids
+        account_ids = valid_lines.mapped('wizard_id.account_id').ids
+
+        # Batch query all potential listings
+        listings = self.env['amazon.product.listing'].search([
+            ('product_tmpl_id', 'in', product_ids),
+            ('account_id', 'in', account_ids),
+        ])
+
+        # Build lookup dictionaries
+        # 1. Exact AFN match per (product_tmpl_id, account_id, marketplace_id)
+        afn_listings = {}
+        # 2. Fallback match per (product_tmpl_id, account_id)
+        any_listings = {}
+
+        for listing in listings:
+            key_any = (listing.product_tmpl_id.id, listing.account_id.id)
+            if key_any not in any_listings:
+                any_listings[key_any] = listing
                 
-                if listing:
-                    line.seller_sku = listing.seller_sku
-                    line.asin = listing.asin
-                    line.fnsku = listing.fnsku
-                else:
-                    # Fall back to any listing for SKU
-                    any_listing = self.env['amazon.product.listing'].search([
-                        ('product_tmpl_id', '=', line.product_id.id),
-                        ('account_id', '=', line.wizard_id.account_id.id),
-                    ], limit=1)
-                    if any_listing:
-                        line.seller_sku = any_listing.seller_sku
-                        line.asin = any_listing.asin
+            if listing.fulfillment_channel == 'AFN' and listing.marketplace_id:
+                key_afn = (listing.product_tmpl_id.id, listing.account_id.id, listing.marketplace_id.id)
+                if key_afn not in afn_listings:
+                    afn_listings[key_afn] = listing
+
+        for line in valid_lines:
+            key_afn = (line.product_id.id, line.wizard_id.account_id.id, line.wizard_id.marketplace_id.id)
+            key_any = (line.product_id.id, line.wizard_id.account_id.id)
+
+            listing = afn_listings.get(key_afn)
+            if listing:
+                line.seller_sku = listing.seller_sku
+                line.asin = listing.asin
+                line.fnsku = listing.fnsku
+            else:
+                any_listing = any_listings.get(key_any)
+                if any_listing:
+                    line.seller_sku = any_listing.seller_sku
+                    line.asin = any_listing.asin
     
     @api.depends('product_id', 'wizard_id.warehouse_id')
     def _compute_available_qty(self):
