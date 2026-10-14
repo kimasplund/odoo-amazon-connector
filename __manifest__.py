@@ -46,8 +46,8 @@ Enterprise-grade Amazon Selling Partner API (SP-API) integration providing:
 - Asia-Pacific: JP, AU, IN
 - Middle East: UAE, SA, TR
     """,
-    'author': 'Amazon Connector Team',
-    'website': 'https://github.com/odoo-amazon-connector',
+    'author': 'Kim Asplund',
+    'website': 'https://github.com/kimasplund/odoo18-amazon-connector',
     'license': 'LGPL-3',
     'depends': [
         # Core Odoo modules

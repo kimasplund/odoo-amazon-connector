@@ -3,7 +3,7 @@
 [![License: LGPL-3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 [![Odoo Version](https://img.shields.io/badge/Odoo-18.0-purple.svg)](https://www.odoo.com)
 
-Enterprise-grade **Amazon Selling Partner API (SP-API)** integration for Odoo 18. Seamlessly connect your Odoo ERP with Amazon marketplaces worldwide.
+**Amazon Selling Partner API (SP-API)** integration for Odoo 18. Connects Odoo to Amazon marketplaces worldwide.
 
 ---
 
