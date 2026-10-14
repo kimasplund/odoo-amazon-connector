@@ -77,7 +77,7 @@ python-dateutil
 ### 1. Clone the Repository
 ```bash
 cd /path/to/odoo/custom-addons
-git clone https://github.com/YOUR_USERNAME/odoo18-amazon-connector.git amazon_connector
+git clone -b 18.0 https://github.com/kimasplund/odoo-amazon-connector.git amazon_connector
 ```
 
 ### 2. Install Python Dependencies
@@ -198,4 +198,4 @@ Contributions are welcome! Please:
 
 ## 📞 Support
 
-For issues and feature requests, please use the [GitHub Issues](https://github.com/YOUR_USERNAME/odoo18-amazon-connector/issues) page.
+For issues and feature requests, please use the [GitHub Issues](https://github.com/kimasplund/odoo-amazon-connector/issues) page.
